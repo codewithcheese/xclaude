@@ -1,8 +1,10 @@
+__xclaude_dir="${0:A:h}"
+
 xclaude() {
   local project_dir="${PWD}"
   local tmpdir="${TMPDIR:-/private/tmp}"
   local home_dir="${HOME}"
-  local script_dir="${0:A:h}"
+  local script_dir="${__xclaude_dir}"
   local profile_path="${script_dir}/xclaude.sb"
 
   # Resolve symlinks (Seatbelt uses real paths, /var -> /private/var)
