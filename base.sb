@@ -20,16 +20,20 @@
 ;; CFPreferences API — node, rustup, and other tools read
 ;; user/system preferences on startup.
 (allow user-preference-read)
-;; JIT / dynamic code generation — needed by JS runtimes (V8, JSC,
-;; Bun) for JIT compilation and by WASM runtimes (QuickJS, Wasmer,
-;; Wasmtime) for execution. Safe to allow globally because:
-;; 1. The sandbox is a kernel-level syscall filter, not a memory
-;;    boundary. JIT-compiled code is still sandboxed — all its
-;;    syscalls (open, read, write) are checked against the policy.
-;; 2. Claude can already execute arbitrary code via allowed binaries
-;;    (bash, node, python). JIT doesn't grant new capabilities.
-;; 3. The only risk is kernel exploit hardening (W^X), which is
-;;    not in our threat model (AI agent, not memory corruption).
+;; JIT / dynamic code generation — enables runtime executable memory
+;; (MAP_JIT) for JS JIT compilers (V8, JSC, Bun) and WASM runtimes.
+;; This is one gate among several: hardened runtime entitlements
+;; (com.apple.security.cs.allow-jit) and AMFI checks also apply.
+;; Not all engines require it (QuickJS interprets, V8 has jitless
+;; mode) but WASM execution and optimal JS performance depend on it.
+;;
+;; Security trade-off: allowing this weakens in-process exploit
+;; hardening (attacker can inject shellcode instead of needing
+;; ROP/JOP). However, JIT code is still sandboxed — all syscalls
+;; are checked against the policy. In our threat model (AI agent
+;; that can already exec bash/node/python), the marginal risk is
+;; low: the agent can already run arbitrary sandboxed code via
+;; allowed binaries, so JIT adds no new capability.
 (allow dynamic-code-generation)
 
 ;; ============================================================
