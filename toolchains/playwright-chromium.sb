@@ -1,0 +1,25 @@
+;; Playwright Chromium browser
+;;
+;; Chromium launched by Playwright needs access to macOS system
+;; integration paths for locale, input methods, crash reporting,
+;; and code-signing validation. These are separate from the shared
+;; browser cache (covered by the base playwright toolchain).
+;;
+;; Requires: tool playwright (for browser binaries at ~/Library/Caches/ms-playwright)
+
+;; Locale and input — Chromium reads keyboard layouts, input methods,
+;; and spelling data during startup for IME support
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Input Methods"))
+  (subpath (string-append (param "HOME") "/Library/Keyboard Layouts"))
+  (subpath (string-append (param "HOME") "/Library/Spelling")))
+
+;; Crash reporter — Crashpad reads its settings on startup
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Application Support/Chromium")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Application Support/Chromium")))
+
+;; Branding check — Chromium reads this at startup
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Google")))

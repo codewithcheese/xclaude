@@ -54,6 +54,7 @@ Comments start with `#`. Blank lines are ignored.
 | `huggingface` | Model cache, auth tokens (`~/.cache/huggingface`) |
 | `cmux` | cmux app bundle (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright` read+write+exec) |
+| `playwright-chromium` | Chromium-specific macOS paths: locale, input methods, spelling, crash reporter, branding. Requires `tool playwright` |
 
 Always prefer a `tool` directive over manual `allow-*` rules when a toolchain exists.
 Toolchains are vetted for least privilege (e.g. `node` makes `~/.nvm` read-only,

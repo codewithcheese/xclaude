@@ -253,9 +253,11 @@ xclaude() {
   local project_dir="$(readlink -f "${PWD}")"
   tmpdir="$(readlink -f "$tmpdir")"
 
-  # TMPDIR is .../T or .../T/, cache dir is sibling .../C
-  # Needed by Security framework (Spotlight mds) for keychain access
+  # TMPDIR is .../T or .../T/, siblings are .../C (cache) and .../X (volatile)
+  # Cache: needed by Security framework (Spotlight mds) for keychain access
+  # Volatile: needed by macOS for code-signing clones at process launch
   local cache_dir="${tmpdir%/T*}/C"
+  local volatile_dir="${tmpdir%/T*}/X"
 
   if [[ ! -f "${__xclaude_dir}/base.sb" ]]; then
     echo "xclaude: base.sb not found at ${__xclaude_dir}/base.sb" >&2
@@ -292,6 +294,7 @@ xclaude() {
     -D "PROJECT_DIR=${project_dir}" \
     -D "TMPDIR=${tmpdir}" \
     -D "CACHE_DIR=${cache_dir}" \
+    -D "VOLATILE_DIR=${volatile_dir}" \
     -D "HOME=${home_dir}" \
     -D "XCLAUDE_DIR=${xclaude_dir_resolved}" \
     -f "$profile_path" \

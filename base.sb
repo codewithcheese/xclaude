@@ -97,6 +97,13 @@
 (allow file-read-data
   (subpath (param "CACHE_DIR")))
 
+;; Volatile dir — .../X/ sibling of TMPDIR. macOS writes code-signing
+;; clones here when launching binaries (e.g. Chromium, Electron apps).
+(allow file-read-data
+  (subpath (param "VOLATILE_DIR")))
+(allow file-write*
+  (subpath (param "VOLATILE_DIR")))
+
 
 ;; Claude Code binary (Bun/Mach-O) and symlink target
 (allow file-read-data

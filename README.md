@@ -108,6 +108,7 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
 | `cmux` | cmux terminal multiplexer (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright`) |
+| `playwright-chromium` | Chromium macOS integration: locale, input methods, spelling, crash reporter. Requires `playwright` |
 
 ### User-level config
 
