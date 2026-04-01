@@ -1,5 +1,5 @@
 ---
-name: permission-rules
+name: debug-sandbox
 description: Fix sandbox-exec denials and permission errors. Use when a command fails with "deny", "Operation not permitted", or "sandbox" errors.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash(ls *), Bash(cat *)
 ---
@@ -79,22 +79,35 @@ These cause errors — never generate rules that violate them:
 
 <workflow>
 
-## Phase 1 — Discover
+## Phase 1 — Can this work without widening permissions?
 
-Examine the project to understand what it needs:
+Before drafting any rules, think through alternatives:
+
+1. **Local instead of global** — can the tool be installed locally in the project? (e.g. `npm install` not `npm install -g`, `pip install --target .` not `pip install --user`)
+2. **Project-local paths** — can data/config live inside the project directory instead of under `~/`?
+3. **Already-permitted tool** — is there an equivalent tool that's already available in the sandbox?
+
+If an alternative exists that works within current permissions, recommend it and stop. Do not widen permissions unnecessarily.
+
+## Phase 2 — Discover
+
+If permissions must be widened, examine the project:
 
 1. **Check for existing `.xclaude`** — read it if present (this may be a revision)
 2. **Identify the tech stack** — look at package.json, Cargo.toml, pyproject.toml, go.mod, etc.
 3. **Ask the user** what tools they use if the project doesn't make it obvious
 4. **Identify non-standard paths** — config files, data directories, custom binaries outside the project
 
-Key questions to resolve:
-- What language runtime / package manager?
-- Any external config read from `~/` paths?
-- Any writable directories outside the project? (caches, data stores, logs)
-- Any custom executables outside standard locations?
+## Phase 3 — Evaluate security implications
 
-## Phase 2 — Draft rules
+For each path you're considering granting access to, think through:
+
+1. **What else lives at that path?** — granting `allow-write ~/.nvm` exposes the entire node installation to modification. Is a narrower subpath sufficient?
+2. **Read vs write vs exec** — what's the minimum operation needed? Don't grant write if read suffices.
+3. **Version-specific paths** — avoid paths with version numbers (e.g. `~/.nvm/versions/node/v22.17.1/...`) that break on upgrades. Use the toolchain directive instead which handles this correctly.
+4. **Toolchain vs manual rule** — if a toolchain exists, it's been vetted for least privilege. Always prefer `tool <name>` over manual `allow-*` rules.
+
+## Phase 4 — Draft rules
 
 Map each need to the narrowest directive:
 
@@ -104,7 +117,7 @@ Map each need to the narrowest directive:
 4. **Use the most specific path** — `~/.config/myapp` not `~/.config`
 5. **Never guess paths** — if uncertain, ask the user
 
-## Phase 3 — Review
+## Phase 5 — Review
 
 Before presenting the config, verify:
 
@@ -114,9 +127,14 @@ Before presenting the config, verify:
 - No validation constraint is violated
 - Toolchains are used where available instead of manual rules
 
-## Phase 4 — Output
+## Phase 6 — Output
 
 Present the `.xclaude` file with comments explaining each rule.
+
+**Lifecycle instructions** — always include these when presenting changes:
+1. `.xclaude` is write-protected inside the sandbox. The user must exit xclaude to create or edit it.
+2. After editing `.xclaude`, restart xclaude. The trust gate will show the config and prompt for approval before it takes effect.
+3. Do NOT suggest using `!` prefix or any in-session workaround — `.xclaude` changes require a restart.
 
 </workflow>
 

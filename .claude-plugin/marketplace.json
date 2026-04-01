@@ -1,5 +1,5 @@
 {
-  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "xclaude-marketplace",
   "owner": {
     "name": "codewithcheese",
     "url": "https://github.com/codewithcheese"
@@ -7,9 +7,11 @@
   "plugins": [
     {
       "name": "xclaude",
-      "description": "macOS Seatbelt sandbox skills for Claude Code",
-      "source": "github",
-      "repo": "codewithcheese/xclaude",
+      "description": "xclaude sandbox skills and hooks",
+      "source": {
+        "source": "github",
+        "repo": "codewithcheese/xclaude"
+      },
       "version": "1.0.0"
     }
   ]

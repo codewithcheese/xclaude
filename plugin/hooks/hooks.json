@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PostToolUseFailure": [{
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/plugin/hooks/sandbox-denial-hook.sh",
+        "timeout": 10
+      }]
+    }]
+  }
+}

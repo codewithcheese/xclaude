@@ -276,16 +276,31 @@ xclaude() {
     return
   fi
 
-  sandbox-exec \
+  # Stream sandbox denials to a temp file outside the sandbox.
+  # The hook script (inside the sandbox) reads this file since
+  # /usr/bin/log refuses to run inside a sandbox.
+  local denial_log="${tmpdir}/xclaude-$$-denials.log"
+  setopt local_options no_monitor
+  /usr/bin/log stream \
+    --predicate 'eventMessage CONTAINS "Sandbox" AND eventMessage CONTAINS "deny"' \
+    --style compact > "$denial_log" 2>/dev/null &
+  local log_pid=$!
+
+  local xclaude_dir_resolved="$(readlink -f "${__xclaude_dir}")"
+
+  XCLAUDE_ACTIVE=1 XCLAUDE_DENIAL_LOG="$denial_log" sandbox-exec \
     -D "PROJECT_DIR=${project_dir}" \
     -D "TMPDIR=${tmpdir}" \
     -D "CACHE_DIR=${cache_dir}" \
     -D "HOME=${home_dir}" \
+    -D "XCLAUDE_DIR=${xclaude_dir_resolved}" \
     -f "$profile_path" \
-    -- claude --dangerously-skip-permissions "$@"
+    -- claude --dangerously-skip-permissions --plugin-dir "${__xclaude_dir}" "$@"
   local rc=$?
 
   # Cleanup
-  rm -f "$profile_path"
+  kill "$log_pid" 2>/dev/null || true
+  wait "$log_pid" 2>/dev/null || true
+  rm -f "$profile_path" "$denial_log"
   return $rc
 }

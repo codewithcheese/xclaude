@@ -126,6 +126,14 @@
 (allow file-read-data
   (subpath (param "PROJECT_DIR")))
 
+;; xclaude plugin — loaded via --plugin-dir, needs read for manifest,
+;; hooks, skills; exec for the hook script
+(allow file-read-data
+  (subpath (string-append (param "XCLAUDE_DIR") "/.claude-plugin"))
+  (subpath (string-append (param "XCLAUDE_DIR") "/plugin")))
+(allow process-exec
+  (literal (string-append (param "XCLAUDE_DIR") "/plugin/hooks/sandbox-denial-hook.sh")))
+
 ;; ============================================================
 ;; Write permissions: strict allowlist
 ;; ============================================================
