@@ -99,7 +99,7 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`) |
 | `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), dlx |
 | `bun` | Bun runtime, install cache (`~/.bun`) |
-| `uv` | uv/uvx, `uv tool install`, cache (`~/Library/Caches/uv`, `~/.local/share/uv`) |
+| `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only — `uv tool install` symlinks are redirected to `~/.local/share/uv/bin/` via `UV_TOOL_BIN_DIR` to prevent binary overwrite attacks |
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |

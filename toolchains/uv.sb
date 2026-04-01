@@ -1,14 +1,18 @@
 ;; Python uv toolchain
 ;;
-;; uv is a fast Python package manager. It installs to ~/.local/bin/uv.
+;; uv is a fast Python package manager. Binary at ~/.local/bin/uv.
 ;; uvx (like npx) runs Python tools without global install.
-;; `uv tool install` puts persistent tool binaries in ~/.local/bin/.
 ;; Cache is at ~/Library/Caches/uv on macOS (not ~/.cache/uv).
 ;; Tool environments live at ~/.local/share/uv/tools/.
+;;
+;; `uv tool install` creates symlinks in a bin directory. By default
+;; this is ~/.local/bin which would be a security risk (RCE via
+;; overwriting any binary there). We redirect tool symlinks to
+;; ~/.local/share/uv/bin/ via UV_TOOL_BIN_DIR in the wrapper.
 
 ;; Exec — uv/uvx binary, tool environments, and cached interpreters
-;; ~/.local/bin has uv, uvx, and binaries from `uv tool install`
-;; ~/.local/share/uv has tool venvs that uvx/tool need to execute
+;; ~/.local/bin has uv, uvx (read+exec only, not writable)
+;; ~/.local/share/uv has tool venvs and tool bin symlinks
 ;; ~/Library/Caches/uv has downloaded Python interpreters and tool
 ;; venvs that uvx needs to exec (e.g. ruff downloaded by uvx)
 (allow process-exec
@@ -17,26 +21,22 @@
   (subpath (string-append (param "HOME") "/Library/Caches/uv"))
   (subpath (string-append (param "HOME") "/.cache/uv")))
 
-;; Read — tool data and cache
+;; Read — uv binary, tool data, and cache
 (allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/bin"))
   (subpath (string-append (param "HOME") "/.local/share/uv"))
   ;; macOS cache (uv uses ~/Library/Caches/uv on macOS)
   (subpath (string-append (param "HOME") "/Library/Caches/uv"))
   ;; Linux/XDG fallback
   (subpath (string-append (param "HOME") "/.cache/uv")))
 
-;; Write — cache (package downloads, uvx envs), tool data, and tool binaries
+;; Write — tool environments, caches, and tool bin symlinks.
+;; ~/.local/bin is intentionally NOT writable — uv tool install
+;; symlinks are redirected to ~/.local/share/uv/bin/ to prevent
+;; overwriting arbitrary binaries (e.g. claude, other tools).
 (allow file-write*
-  ;; tool environments and metadata
+  ;; tool environments, metadata, and tool bin symlinks (via UV_TOOL_BIN_DIR)
   (subpath (string-append (param "HOME") "/.local/share/uv"))
-  ;; package cache (downloads, wheel builds)
+  ;; package cache (downloads, wheel builds, uvx temp envs)
   (subpath (string-append (param "HOME") "/Library/Caches/uv"))
-  (subpath (string-append (param "HOME") "/.cache/uv"))
-  ;; `uv tool install` writes binaries/symlinks here
-  (subpath (string-append (param "HOME") "/.local/bin")))
-
-;; Protect the claude binary from being overwritten — ~/.local/bin/claude
-;; is a symlink to the Claude Code installation. Overwriting it would be
-;; a privilege escalation (next launch runs attacker code unsandboxed).
-(deny file-write*
-  (literal (string-append (param "HOME") "/.local/bin/claude")))
+  (subpath (string-append (param "HOME") "/.cache/uv")))

@@ -76,18 +76,24 @@ else
   expect_success "uvx" tc_sandboxed "$__uvx" ruff version
 fi
 
-# uv tool install (persistent tool)
-t "uv: uv tool install"
-expect_success "tool install" tc_sandboxed "$__uv" tool install ruff
+# uv tool install — redirect bin symlinks to a safe directory
+# (not ~/.local/bin, which would allow overwriting any binary)
+__uv_tool_bin="${HOME}/.local/share/uv/bin"
 
-t "uv: tool binary in ~/.local/bin"
-expect_success "tool binary" tc_sandboxed test -f "${HOME}/.local/bin/ruff"
+t "uv: uv tool install"
+expect_success "tool install" tc_sandboxed /bin/sh -c "UV_TOOL_BIN_DIR='${__uv_tool_bin}' '${__uv}' tool install ruff 2>&1"
+
+t "uv: tool symlink in ~/.local/share/uv/bin"
+expect_success "tool binary" tc_sandboxed test -f "${__uv_tool_bin}/ruff"
 
 t "uv: installed tool runs"
-expect_success "tool runs" tc_sandboxed "${HOME}/.local/bin/ruff" version
+expect_success "tool runs" tc_sandboxed "${__uv_tool_bin}/ruff" version
+
+t "uv: ~/.local/bin NOT writable (security: prevents RCE via binary overwrite)"
+expect_fail "blocked" tc_sandboxed touch "${HOME}/.local/bin/test-write"
 
 # clean up tool
-tc_sandboxed "$__uv" tool uninstall ruff 2>/dev/null || true
+tc_sandboxed /bin/sh -c "UV_TOOL_BIN_DIR='${__uv_tool_bin}' '${__uv}' tool uninstall ruff 2>&1" 2>/dev/null || true
 
 # uv init
 t "uv: uv init"
