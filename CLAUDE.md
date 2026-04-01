@@ -1,6 +1,6 @@
 # xclaude
 
-## Sandbox profile (xclaude.sb)
+## Sandbox profile (base.sb)
 
 - Every SBPL statement must have a comment explaining why it exists.
 
@@ -19,9 +19,9 @@
 Plugin source lives in `plugin/`. Manifest at `.claude-plugin/plugin.json` (repo root).
 
 ```
-.claude-plugin/plugin.json    # manifest, references plugin/
+.claude-plugin/plugin.json    # manifest, explicitly references plugin/hooks/hooks.json
 plugin/
-  hooks/hooks.json             # hook config (auto-discovered)
+  hooks/hooks.json             # hook config (referenced from manifest)
   hooks/sandbox-denial-hook.sh # PostToolUseFailure hook
   skills/debug-sandbox/        # sandbox debugging skill
 ```
@@ -41,11 +41,32 @@ toolchains/
   <name>.sb              # SBPL fragment for a toolchain
   <name>.test.zsh        # Sandbox tests for that toolchain
   test_helpers.zsh       # Shared test helpers (tc_setup, tc_sandboxed, etc.)
+.claude-plugin/
+  plugin.json            # Plugin manifest (loaded via --plugin-dir)
+plugin/
+  hooks/hooks.json       # PostToolUseFailure hook config
+  hooks/sandbox-denial-hook.sh
+  skills/debug-sandbox/  # /debug-sandbox skill
 test_xclaude.bash        # DSL pipeline unit tests (bash, any platform)
 test_sandbox.zsh         # Sandbox integration tests (zsh, macOS only)
 ```
 
 The DSL (`.xclaude` files) is the safety boundary between user/project config and the kernel sandbox. Raw SBPL is only in `base.sb` and `toolchains/*.sb` — both are bundled and vetted.
+
+## SBPL parameters
+
+All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude.zsh`.
+
+| Parameter | Resolves to |
+|---|---|
+| `HOME` | `/Users/<you>` |
+| `PROJECT_DIR` | Absolute path of the project (via `readlink -f`) |
+| `TMPDIR` | `/private/var/folders/.../T/` |
+| `CACHE_DIR` | `/private/var/folders/.../C/` (sibling of TMPDIR) |
+| `VOLATILE_DIR` | `/private/var/folders/.../X/` (sibling of TMPDIR, code-signing clones) |
+| `XCLAUDE_DIR` | Absolute path of the xclaude installation (where `xclaude.zsh` lives) |
+
+Use `(param "NAME")` in SBPL — never hardcode paths.
 
 ## SBPL rules to know
 
