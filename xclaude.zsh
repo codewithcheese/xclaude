@@ -11,10 +11,10 @@ __xclaude_parse() {
   local file="$1" line verb arg lineno=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     lineno=$((lineno + 1))
-    # Strip comments and leading/trailing whitespace
+    # Strip comments and leading/trailing whitespace (tabs and spaces)
     line="${line%%#*}"
-    line="${line## }"
-    line="${line%% }"
+    line="${line##[[:space:]]#}"
+    line="${line%%[[:space:]]#}"
     [[ -z "$line" ]] && continue
 
     verb="${line%% *}"
@@ -55,7 +55,7 @@ __xclaude_validate() {
       tool)
         if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
           echo "xclaude: unknown toolchain '${arg}'" >&2
-          echo "xclaude: available: $(ls "${toolchains_dir}" | sed 's/\.sb$//' | tr '\n' ' ')" >&2
+          echo "xclaude: available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')" >&2
           return 1
         fi
         echo "$line"
@@ -63,8 +63,11 @@ __xclaude_validate() {
       allow-read|allow-write|allow-exec)
         # Validate path prefix
         local prefix2="${arg:0:2}"
-        if [[ "$arg" = "~" ]]; then
-          echo "xclaude: bare '~' is too broad — use ~/specific/path" >&2
+        if [[ "$arg" = "~" || "$arg" = "~/" ]]; then
+          echo "xclaude: bare '~' or '~/' is too broad — use ~/specific/path" >&2
+          return 1
+        elif [[ "$arg" = "./" || "$arg" = "." ]]; then
+          echo "xclaude: bare './' is too broad — use ./specific/path" >&2
           return 1
         elif [[ "$prefix2" != "~/" && "$prefix2" != "./" && "${arg:0:1}" != "/" ]]; then
           echo "xclaude: invalid path '${arg}' — must start with ~/, ./, or /" >&2
@@ -164,7 +167,7 @@ __xclaude_is_trusted() {
   local file="$1"
   [[ ! -f "$__xclaude_trusted_file" ]] && return 1
   local hash="$(__xclaude_file_hash "$file")"
-  grep -qF "$hash" "$__xclaude_trusted_file" 2>/dev/null
+  grep -q "^${hash} " "$__xclaude_trusted_file" 2>/dev/null
 }
 
 __xclaude_trust() {
@@ -245,9 +248,8 @@ __xclaude_assemble() {
 # ── Main entry point ─────────────────────────────────────────
 xclaude() {
   local tmpdir="${TMPDIR:-/private/tmp}"
-  local home_dir="${HOME}"
-
   # Resolve symlinks (Seatbelt uses real paths, /var -> /private/var)
+  local home_dir="$(readlink -f "${HOME}")"
   local project_dir="$(readlink -f "${PWD}")"
   tmpdir="$(readlink -f "$tmpdir")"
 

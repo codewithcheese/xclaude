@@ -159,6 +159,9 @@
 (deny file-write*
   (literal (string-append (param "PROJECT_DIR") "/.env"))
   (literal (string-append (param "PROJECT_DIR") "/.env.local"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.development"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.staging"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.test"))
   (literal (string-append (param "PROJECT_DIR") "/.env.production")))
 
 ;; Git hooks — prevent injection of arbitrary code that runs

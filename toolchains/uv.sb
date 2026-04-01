@@ -34,3 +34,9 @@
   (subpath (string-append (param "HOME") "/.cache/uv"))
   ;; `uv tool install` writes binaries/symlinks here
   (subpath (string-append (param "HOME") "/.local/bin")))
+
+;; Protect the claude binary from being overwritten — ~/.local/bin/claude
+;; is a symlink to the Claude Code installation. Overwriting it would be
+;; a privilege escalation (next launch runs attacker code unsandboxed).
+(deny file-write*
+  (literal (string-append (param "HOME") "/.local/bin/claude")))

@@ -15,10 +15,11 @@
   ;; Alternative go install location
   (subpath (string-append (param "HOME") "/.local/go")))
 
-;; Read — compiler, workspace, and build cache
+;; Read — compiler, workspace, build cache, and alternative install
 (allow file-read-data
   (subpath "/usr/local/go")
   (subpath (string-append (param "HOME") "/go"))
+  (subpath (string-append (param "HOME") "/.local/go"))
   (subpath (string-append (param "HOME") "/.cache/go-build")))
 
 ;; Write — installed binaries, module cache, and build cache

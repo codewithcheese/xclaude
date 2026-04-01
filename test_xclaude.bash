@@ -56,7 +56,7 @@ __xclaude_validate() {
       tool)
         if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
           echo "xclaude: unknown toolchain '${arg}'" >&2
-          echo "xclaude: available: $(ls "${toolchains_dir}" | sed 's/\.sb$//' | tr '\n' ' ')" >&2
+          echo "xclaude: available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')" >&2
           return 1
         fi
         echo "$line"
@@ -64,8 +64,11 @@ __xclaude_validate() {
       allow-read|allow-write|allow-exec)
         # Validate path prefix using string prefix checks
         local prefix2="${arg:0:2}"
-        if [[ "$arg" = "~" ]]; then
-          echo "xclaude: bare '~' is too broad — use ~/specific/path" >&2
+        if [[ "$arg" = "~" || "$arg" = "~/" ]]; then
+          echo "xclaude: bare '~' or '~/' is too broad — use ~/specific/path" >&2
+          return 1
+        elif [[ "$arg" = "./" || "$arg" = "." ]]; then
+          echo "xclaude: bare './' is too broad — use ./specific/path" >&2
           return 1
         elif [[ "$prefix2" != "~/" && "$prefix2" != "./" && "${arg:0:1}" != "/" ]]; then
           echo "xclaude: invalid path '${arg}' — must start with ~/, ./, or /" >&2
@@ -309,6 +312,12 @@ assert_succeeds "echo 'allow-read /opt/custom' | __xclaude_validate"
 t "rejects bare tilde"
 assert_fails "echo 'allow-read ~' | __xclaude_validate"
 
+t "rejects ~/ (entire home)"
+assert_fails "echo 'allow-write ~/' | __xclaude_validate"
+
+t "rejects ./ (entire project)"
+assert_fails "echo 'allow-write ./' | __xclaude_validate"
+
 t "rejects relative path without ./"
 assert_fails "echo 'allow-read local/.share' | __xclaude_validate"
 
@@ -361,6 +370,9 @@ assert_contains '.xclaude' "$out"
 t "base.sb denies writes to .env files"
 assert_contains '/.env"' "$out"
 assert_contains '/.env.local"' "$out"
+assert_contains '/.env.development"' "$out"
+assert_contains '/.env.staging"' "$out"
+assert_contains '/.env.test"' "$out"
 assert_contains '/.env.production"' "$out"
 
 t "base.sb denies writes to .git/hooks"
