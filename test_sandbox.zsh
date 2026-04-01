@@ -35,6 +35,17 @@ __test_name=""
 
 t() { __test_name="$1"; }
 
+# Show recent sandbox denials from the system log
+__show_denials() {
+  echo "  recent sandbox denials:" >&2
+  /usr/bin/log show --last 5s \
+    --predicate 'eventMessage CONTAINS "deny"' \
+    --style compact 2>/dev/null \
+    | grep -i "deny" \
+    | tail -10 \
+    | sed 's/^/    /' >&2
+}
+
 expect_success() {
   local desc="$1"; shift
   if "$@" >/dev/null 2>&1; then
@@ -43,6 +54,7 @@ expect_success() {
     __test_fail=$((__test_fail + 1))
     echo "FAIL: ${__test_name} — ${desc}" >&2
     echo "  command: $*" >&2
+    __show_denials
   fi
 }
 
@@ -131,7 +143,10 @@ elif [[ "${1:-}" = "--toolchain" ]]; then
   fi
 fi
 
+# Assemble base profile and inject (debug deny) for denial logging
 PROFILE="$(__xclaude_assemble "$PROJECT_DIR")"
+PROFILE="${PROFILE/(version 1)/(version 1)
+(debug deny)}"
 PROFILE_PATH="${TMPDIR_RESOLVED}/xclaude-test-$$.sb"
 echo "$PROFILE" > "$PROFILE_PATH"
 
