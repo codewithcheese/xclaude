@@ -15,6 +15,14 @@ rm -f "${HOME}/.bun/test-write"
 
 # ── Usability ──
 __bun="${HOME}/.bun/bin/bun"
+if [[ ! -x "$__bun" ]]; then
+  __bun="$(command -v bun 2>/dev/null || echo "")"
+fi
+if [[ -z "$__bun" ]]; then
+  echo "SKIP: bun binary not found" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "bun: bun --version"
 expect_success "runs" tc_sandboxed "$__bun" --version
@@ -35,8 +43,9 @@ expect_success "bun run" tc_sandboxed "$__bun" run "${PROJECT_DIR}/bun-test/test
 
 rm -rf "${PROJECT_DIR}/bun-test"
 
+# bunx needs CWD inside PROJECT_DIR to avoid "error loading current directory"
 t "bun: bunx executes package"
-expect_success "bunx" tc_sandboxed "$__bun" x is-odd 3
+expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__bun' x is-odd 3 2>&1"
 
 # ── Isolation ──
 t "bun: ~/.ssh blocked"

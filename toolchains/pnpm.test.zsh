@@ -20,7 +20,14 @@ expect_success "allowed" tc_sandboxed cat "${HOME}/.config/pnpm/rc"
 
 # ── Usability ──
 __pnpm="${HOME}/.local/share/pnpm/pnpm"
-[[ -x "$__pnpm" ]] || __pnpm="$(command -v pnpm 2>/dev/null)"
+if [[ ! -x "$__pnpm" ]]; then
+  __pnpm="$(command -v pnpm 2>/dev/null || echo "")"
+fi
+if [[ -z "$__pnpm" ]]; then
+  echo "SKIP: pnpm binary not found" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "pnpm: pnpm --version"
 expect_success "runs" tc_sandboxed "$__pnpm" --version
@@ -41,7 +48,7 @@ rm -rf "${PROJECT_DIR}/pnpm-test"
 
 # pnpm dlx (downloads + executes from store)
 t "pnpm: pnpm dlx executes package"
-expect_success "dlx" tc_sandboxed /bin/sh -c "'$__pnpm' dlx is-odd 3 2>&1"
+expect_success "dlx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__pnpm' dlx is-odd 3 2>&1"
 
 # ── Isolation ──
 t "pnpm: ~/.ssh blocked"

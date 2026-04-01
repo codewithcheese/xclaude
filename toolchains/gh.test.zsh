@@ -14,12 +14,19 @@ expect_fail "blocked" tc_sandboxed touch "${HOME}/.config/gh/test-write"
 # ── Usability ──
 # gh is installed via homebrew — exec via /opt/homebrew (base profile)
 # The gh toolchain grants read access to auth config, not exec.
+# sandbox-exec needs the full path — bare names don't search PATH.
+__gh_bin="$(command -v gh 2>/dev/null || echo "")"
+if [[ -z "$__gh_bin" ]]; then
+  echo "SKIP: gh binary not found in PATH" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "gh: gh --version"
-expect_success "runs" tc_sandboxed gh --version
+expect_success "runs" tc_sandboxed "$__gh_bin" --version
 
 t "gh: gh help"
-expect_success "help" tc_sandboxed gh help
+expect_success "help" tc_sandboxed "$__gh_bin" help
 
 # ── Isolation ──
 t "gh: ~/.ssh blocked"

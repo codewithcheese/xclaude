@@ -21,12 +21,25 @@ rm -f "${HOME}/.cargo/registry/test-write"
 
 # ── Usability ──
 __cargo="${HOME}/.cargo/bin/cargo"
+if [[ ! -x "$__cargo" ]]; then
+  __cargo="$(command -v cargo 2>/dev/null || echo "")"
+fi
+if [[ -z "$__cargo" ]]; then
+  echo "SKIP: cargo binary not found" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "rust: cargo --version"
 expect_success "runs" tc_sandboxed "$__cargo" --version
 
+__rustc="${HOME}/.cargo/bin/rustc"
+if [[ ! -x "$__rustc" ]]; then
+  __rustc="$(command -v rustc 2>/dev/null || echo "${HOME}/.cargo/bin/rustc")"
+fi
+
 t "rust: rustc --version"
-expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/rustc" --version
+expect_success "runs" tc_sandboxed "$__rustc" --version
 
 # cargo init + build
 t "rust: cargo init"
@@ -41,14 +54,15 @@ expect_success "binary" tc_sandboxed test -f "${PROJECT_DIR}/rust-test/target/de
 rm -rf "${PROJECT_DIR}/rust-test"
 
 # cargo install (installs binary to ~/.cargo/bin)
+# Use a lightweight crate to avoid compile timeouts in CI (du-dust is too heavy)
 t "rust: cargo install"
-expect_success "cargo install" tc_sandboxed "$__cargo" install du-dust
+expect_success "cargo install" tc_sandboxed "$__cargo" install names
 
 t "rust: installed binary in ~/.cargo/bin"
-expect_success "binary" tc_sandboxed test -f "${HOME}/.cargo/bin/dust"
+expect_success "binary" tc_sandboxed test -f "${HOME}/.cargo/bin/names"
 
 t "rust: installed binary runs"
-expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/dust" --version
+expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/names" --help
 
 # ── Isolation ──
 t "rust: ~/.ssh blocked"

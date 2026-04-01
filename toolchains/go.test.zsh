@@ -23,7 +23,12 @@ expect_success "allowed" tc_sandboxed touch "${HOME}/.cache/go-build/test-write"
 rm -f "${HOME}/.cache/go-build/test-write"
 
 # ── Usability ──
-__go="/usr/local/go/bin/go"
+__go="$(command -v go 2>/dev/null || echo "")"
+if [[ -z "$__go" ]]; then
+  echo "SKIP: go binary not found in PATH" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "go: go version"
 expect_success "runs" tc_sandboxed "$__go" version
@@ -44,7 +49,7 @@ rm -rf "${PROJECT_DIR}/go-test"
 
 # go install (installs binary to ~/go/bin)
 t "go: go install"
-expect_success "go install" tc_sandboxed /bin/sh -c "GOPATH='${HOME}/go' GOBIN='${HOME}/go/bin' '$__go' install github.com/oligot/go-mod-upgrade@latest 2>&1"
+expect_success "go install" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && GOPATH='${HOME}/go' GOBIN='${HOME}/go/bin' '$__go' install github.com/oligot/go-mod-upgrade@latest 2>&1"
 
 t "go: installed binary in ~/go/bin"
 expect_success "binary" tc_sandboxed test -f "${HOME}/go/bin/go-mod-upgrade"

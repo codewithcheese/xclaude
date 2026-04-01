@@ -27,15 +27,22 @@ expect_success "allowed" tc_sandboxed /bin/sh -c "echo 'hf_new_token' > '${HOME}
 
 # ── Usability ──
 # huggingface-cli is a Python script — exec via system python (base profile)
+# sandbox-exec needs the full path — bare names don't search PATH.
+__hf_cli="$(command -v huggingface-cli 2>/dev/null || echo "")"
+if [[ -z "$__hf_cli" ]]; then
+  echo "SKIP: huggingface-cli binary not found in PATH" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
 
 t "huggingface: huggingface-cli --version"
-expect_success "runs" tc_sandboxed huggingface-cli version
+expect_success "runs" tc_sandboxed "$__hf_cli" version
 
 t "huggingface: huggingface-cli scan-cache"
-expect_success "scan-cache" tc_sandboxed huggingface-cli scan-cache
+expect_success "scan-cache" tc_sandboxed "$__hf_cli" scan-cache
 
 t "huggingface: huggingface-cli env"
-expect_success "env" tc_sandboxed huggingface-cli env
+expect_success "env" tc_sandboxed "$__hf_cli" env
 
 # ── Isolation ──
 t "huggingface: ~/.ssh blocked"

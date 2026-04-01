@@ -16,7 +16,26 @@ rm -f "${HOME}/.local/share/uv/test-write"
 
 # ── Usability ──
 __uv="${HOME}/.local/bin/uv"
+if [[ ! -x "$__uv" ]]; then
+  __uv="$(command -v uv 2>/dev/null || echo "")"
+fi
+if [[ -z "$__uv" ]]; then
+  echo "SKIP: uv binary not found" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
+
 __uvx="${HOME}/.local/bin/uvx"
+if [[ ! -x "$__uvx" ]]; then
+  __uvx="$(command -v uvx 2>/dev/null || echo "")"
+fi
+# uvx might not exist separately — some installs use "uv tool run" instead
+if [[ -z "$__uvx" ]]; then
+  __uvx="$__uv"
+  __uvx_is_uv=true
+else
+  __uvx_is_uv=false
+fi
 
 t "uv: uv --version"
 expect_success "runs" tc_sandboxed "$__uv" --version
@@ -25,27 +44,37 @@ expect_success "runs" tc_sandboxed "$__uv" --version
 t "uv: uv venv"
 expect_success "venv" tc_sandboxed "$__uv" venv "${PROJECT_DIR}/uv-venv"
 
+# uv venv may create python3 instead of python — find whichever exists
+__uv_venv_python="${PROJECT_DIR}/uv-venv/bin/python"
+if [[ ! -f "$__uv_venv_python" && ! -L "$__uv_venv_python" ]]; then
+  __uv_venv_python="${PROJECT_DIR}/uv-venv/bin/python3"
+fi
+
 t "uv: uv pip install"
-expect_success "pip install" tc_sandboxed "$__uv" pip install --python "${PROJECT_DIR}/uv-venv/bin/python" six
+expect_success "pip install" tc_sandboxed "$__uv" pip install --python "$__uv_venv_python" six
 
 t "uv: import installed package"
-expect_success "import" tc_sandboxed "${PROJECT_DIR}/uv-venv/bin/python" -c "import six; print(six.__version__)"
+expect_success "import" tc_sandboxed "$__uv_venv_python" -c "import six; print(six.__version__)"
 
 # editable install (pip install -e .)
 t "uv: editable install"
 mkdir -p "${PROJECT_DIR}/editable-pkg/src/mypkg"
-printf '[project]\nname = "mypkg"\nversion = "0.1.0"\n\n[build-system]\nrequires = ["setuptools"]\nbuild-backend = "setuptools.backends._legacy:_Backend"\n' > "${PROJECT_DIR}/editable-pkg/pyproject.toml"
+printf '[project]\nname = "mypkg"\nversion = "0.1.0"\n\n[build-system]\nrequires = ["setuptools>=64"]\nbuild-backend = "setuptools.build_meta"\n' > "${PROJECT_DIR}/editable-pkg/pyproject.toml"
 printf 'def hello():\n    return "sandbox ok"\n' > "${PROJECT_DIR}/editable-pkg/src/mypkg/__init__.py"
-expect_success "pip install -e" tc_sandboxed "$__uv" pip install --python "${PROJECT_DIR}/uv-venv/bin/python" -e "${PROJECT_DIR}/editable-pkg"
+expect_success "pip install -e" tc_sandboxed "$__uv" pip install --python "$__uv_venv_python" -e "${PROJECT_DIR}/editable-pkg"
 
 t "uv: import editable package"
-expect_success "import editable" tc_sandboxed "${PROJECT_DIR}/uv-venv/bin/python" -c "from mypkg import hello; print(hello())"
+expect_success "import editable" tc_sandboxed "$__uv_venv_python" -c "from mypkg import hello; print(hello())"
 
 rm -rf "${PROJECT_DIR}/uv-venv" "${PROJECT_DIR}/editable-pkg"
 
 # uvx (run without installing)
 t "uv: uvx runs package"
-expect_success "uvx" tc_sandboxed "$__uvx" ruff version
+if $__uvx_is_uv; then
+  expect_success "uvx" tc_sandboxed "$__uvx" tool run ruff version
+else
+  expect_success "uvx" tc_sandboxed "$__uvx" ruff version
+fi
 
 # uv tool install (persistent tool)
 t "uv: uv tool install"
