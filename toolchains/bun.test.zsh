@@ -9,9 +9,12 @@ t "bun: read ~/.bun"
 tc_fixture_file "${HOME}/.bun/test-data"
 expect_success "allowed" tc_sandboxed cat "${HOME}/.bun/test-data"
 
-t "bun: write ~/.bun"
-expect_success "allowed" tc_sandboxed touch "${HOME}/.bun/test-write"
-rm -f "${HOME}/.bun/test-write"
+t "bun: write ~/.bun/install"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.bun/install/test-write"
+rm -f "${HOME}/.bun/install/test-write"
+
+t "bun: ~/.bun/bin not writable"
+expect_fail "blocked" tc_sandboxed touch "${HOME}/.bun/bin/test-write"
 
 # ── Usability ──
 __bun="${HOME}/.bun/bin/bun"
