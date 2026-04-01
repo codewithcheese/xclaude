@@ -1,0 +1,32 @@
+name: "Sandbox: bun"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/bun.sb'
+      - 'toolchains/bun.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-bun.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/bun.sb'
+      - 'toolchains/bun.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-bun.yml'
+
+jobs:
+  sandbox-bun:
+    name: "Sandbox: bun"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bun
+        run: curl -fsSL https://bun.sh/install | bash
+      - run: zsh test_sandbox.zsh --toolchain bun

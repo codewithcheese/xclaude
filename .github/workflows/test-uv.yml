@@ -1,0 +1,32 @@
+name: "Sandbox: uv"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/uv.sb'
+      - 'toolchains/uv.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-uv.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/uv.sb'
+      - 'toolchains/uv.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-uv.yml'
+
+jobs:
+  sandbox-uv:
+    name: "Sandbox: uv"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: zsh test_sandbox.zsh --toolchain uv

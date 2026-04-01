@@ -1,0 +1,32 @@
+name: "Sandbox: pnpm"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/pnpm.sb'
+      - 'toolchains/pnpm.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-pnpm.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/pnpm.sb'
+      - 'toolchains/pnpm.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-pnpm.yml'
+
+jobs:
+  sandbox-pnpm:
+    name: "Sandbox: pnpm"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        run: curl -fsSL https://get.pnpm.io/install.sh | sh -
+      - run: zsh test_sandbox.zsh --toolchain pnpm
