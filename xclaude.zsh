@@ -244,11 +244,11 @@ __xclaude_assemble() {
 
 # ── Main entry point ─────────────────────────────────────────
 xclaude() {
-  local project_dir="${PWD}"
   local tmpdir="${TMPDIR:-/private/tmp}"
   local home_dir="${HOME}"
 
   # Resolve symlinks (Seatbelt uses real paths, /var -> /private/var)
+  local project_dir="$(readlink -f "${PWD}")"
   tmpdir="$(readlink -f "$tmpdir")"
 
   # TMPDIR is .../T or .../T/, cache dir is sibling .../C

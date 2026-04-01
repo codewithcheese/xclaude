@@ -59,7 +59,8 @@ skip() {
 }
 
 # ── Setup ─────────────────────────────────────────────────────
-PROJECT_DIR="$(mktemp -d)"
+# Resolve symlinks — Seatbelt uses real paths (/var -> /private/var)
+PROJECT_DIR="$(readlink -f "$(mktemp -d)")"
 TMPDIR_RESOLVED="$(readlink -f "${TMPDIR:-/private/tmp}")"
 CACHE_DIR="${TMPDIR_RESOLVED%/T*}/C"
 HOME_DIR="${HOME}"
