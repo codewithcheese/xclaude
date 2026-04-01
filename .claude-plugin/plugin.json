@@ -1,0 +1,11 @@
+{
+  "name": "xclaude",
+  "version": "1.0.0",
+  "description": "macOS Seatbelt sandbox skills for Claude Code",
+  "author": {
+    "name": "codewithcheese"
+  },
+  "repository": "https://github.com/codewithcheese/xclaude",
+  "license": "MIT",
+  "skills": "./plugin/"
+}
