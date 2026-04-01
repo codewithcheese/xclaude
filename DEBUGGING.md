@@ -3,23 +3,25 @@
 ## Quick test
 
 ```bash
-# Does the profile load without crashing?
-sandbox-exec -D PROJECT_DIR=$PWD -D TMPDIR=$(readlink -f $TMPDIR) \
+# Does the base profile load without crashing?
+sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- /bin/echo "profile ok"
+  -f base.sb -- /bin/echo "profile ok"
 
 # Does Claude run in print mode?
-sandbox-exec -D PROJECT_DIR=$PWD -D TMPDIR=$(readlink -f $TMPDIR) \
+sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- claude --print "Say: hello" < /dev/null
+  -f base.sb -- claude --print "Say: hello" < /dev/null
 
 # Does the TUI render? (uses `script` to allocate a real TTY)
-timeout 5 script -q /dev/null sandbox-exec -D PROJECT_DIR=$PWD \
+timeout 5 script -q /dev/null sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) \
   -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- claude < /dev/null 2>&1 | cat -v | head -10
+  -f base.sb -- claude < /dev/null 2>&1 | cat -v | head -10
 # Look for ANSI escape codes like "Claude Code" — that means the TUI rendered.
 ```
+
+Note: all paths are resolved with `readlink -f` because Seatbelt resolves symlinks before matching (e.g., `/var` → `/private/var`).
 
 ## Viewing sandbox denials
 
@@ -38,7 +40,9 @@ Use `/usr/bin/log` (not `log` — zsh has a built-in that conflicts):
 
 ### Force denial logging
 
-Add `(debug deny)` after `(version 1)` in the profile to ensure all denials are logged, even when they might otherwise be suppressed.
+**Warning**: `(debug deny)` may crash `sandbox-exec` on macOS 14+ (exit code 134). Test before using.
+
+If it works on your macOS version, add `(debug deny)` after `(version 1)` to ensure all denials are logged. Otherwise, rely on `/usr/bin/log show` filtering — sandbox denials are logged by default on most macOS versions.
 
 ### Common denial patterns
 

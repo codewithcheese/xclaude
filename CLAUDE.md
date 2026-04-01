@@ -80,11 +80,17 @@ rm -f "${HOME}/.tool/cache/test-write"
 t "<name>: ~/.tool/bin not writable"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.tool/bin/test-write"
 
-# Test usability (if tool is installed)
-if tc_has_cmd <binary>; then
-  t "<name>: <binary> executable works"
-  expect_success "usable" tc_sandboxed <binary> --version
-fi
+# Test usability — use full binary paths, not bare names
+# (sandbox-exec doesn't search PATH)
+__tool_bin="${HOME}/.tool/bin/tool"
+[[ -x "$__tool_bin" ]] || __tool_bin="$(command -v tool 2>/dev/null || echo "")"
+
+t "<name>: tool --version"
+expect_success "runs" tc_sandboxed "$__tool_bin" --version
+
+# Test real operations, not just --version
+t "<name>: tool init project"
+expect_success "init" tc_sandboxed "$__tool_bin" init "${PROJECT_DIR}/test-proj"
 
 # Test isolation
 t "<name>: ~/.ssh blocked"
@@ -95,13 +101,20 @@ tc_cleanup
 
 The test runner auto-discovers `toolchains/*.test.zsh` — no registration needed.
 
+**Important CI practices:**
+- Use full binary paths (`"$__tool_bin"`) — `sandbox-exec` doesn't search PATH
+- `tc_sandboxed` automatically `cd`s to PROJECT_DIR — tools need a readable CWD
+- For `/bin/sh -c` wrappers, include `cd '${PROJECT_DIR}' &&` at the start
+- Test real operations (install, build, run) not just `--version`
+- When a test fails, stderr and sandbox denial logs are shown automatically
+
 ### 3. Update README.md
 
 Add the toolchain to the "Available toolchains" table.
 
-### 4. Optionally update CI
+### 4. Add a CI job
 
-If the tool is fast to install, add it to `.github/workflows/test.yml` so the usability test (`tc_has_cmd`) runs in CI.
+Each toolchain gets its own parallel CI job in `.github/workflows/test.yml`. The job installs the tool at its canonical path and runs `zsh test_sandbox.zsh --toolchain <name>`.
 
 ## Modifying the base policy (base.sb)
 
@@ -136,10 +149,17 @@ Use `(literal)` for files, `(subpath)` for directories. Add a corresponding sand
 # DSL pipeline (any platform, fast)
 bash test_xclaude.bash
 
-# Sandbox integration (macOS only)
+# Sandbox integration — all tests (macOS only)
 zsh test_sandbox.zsh
 
-# Sandbox with a specific project config
+# Base profile only (no toolchains)
+zsh test_sandbox.zsh --toolchain none
+
+# Specific toolchain(s)
+zsh test_sandbox.zsh --toolchain node
+zsh test_sandbox.zsh --toolchain node,uv
+
+# With a custom project config
 zsh test_sandbox.zsh --with-config path/to/.xclaude
 ```
 

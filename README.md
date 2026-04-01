@@ -25,6 +25,10 @@ Even though the project directory is writable, these files are protected by deny
 - `.env`, `.env.local`, `.env.production` — secrets and API keys
 - `.git/hooks/` — prevents injection of code that runs on git operations
 
+### Trust gate
+
+When a project has a `.xclaude` config, xclaude computes its sha256 hash and checks `~/.config/xclaude/trusted`. If the config is new or changed, xclaude shows its contents and prompts for approval before applying it. This prevents a malicious commit from silently widening sandbox access.
+
 ### Verified escape vectors
 
 Symlink traversal, hardlinks, /tmp script execution, child process inheritance (python, node, bash), fd redirects, and curl exfiltration of blocked files — all blocked by Seatbelt's kernel-level enforcement.
@@ -86,20 +90,21 @@ allow-exec ~/.local/bin/custom      # read + exec access
 - No raw SBPL — all rules are generated from validated directives
 - No system paths — `/System`, `/usr`, `/bin`, `/Library`, `/opt/homebrew` are already in the base profile
 - No bare `~` — you must specify a subdirectory
+- No targeting `.xclaude` — the sandbox config file is protected
 
 ### Available toolchains
 
 | Name | What it allows |
 |---|---|
 | `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`) |
-| `pnpm` | pnpm binary, global store (`~/.pnpm-store`), dlx execution |
-| `bun` | Bun runtime, bunx, install cache (`~/.bun`) |
-| `uv` | uv/uvx binary, `uv tool install`, cache (`~/Library/Caches/uv`) |
+| `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), dlx |
+| `bun` | Bun runtime, install cache (`~/.bun`) |
+| `uv` | uv/uvx, `uv tool install`, cache (`~/Library/Caches/uv`, `~/.local/share/uv`) |
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
-| `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache |
+| `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
 | `deno` | Deno runtime and cache (`~/.deno`) |
-| `gh` | GitHub CLI auth tokens (`~/.config/gh`) |
+| `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
 
 ### User-level config
@@ -118,7 +123,7 @@ allow-write ~/.config/auto-chat
 ```
 base.sb                          # core Claude needs (always)
 + ~/.config/xclaude/config       # user-level (if exists)
-+ .xclaude                       # project-level (if exists)
++ .xclaude                       # project-level (if exists, trust-gated)
 ```
 
 All layers are additive. The base profile provides `(deny default)` and cannot be weakened by config files.
@@ -127,12 +132,14 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 
 | File | Purpose |
 |---|---|
-| `xclaude.zsh` | Shell wrapper — DSL parser, validator, SBPL generator, assembler |
-| `base.sb` | Core Seatbelt/SBPL profile (hand-written, the only raw SBPL) |
-| `xclaude.sb` | Legacy monolithic profile (kept for reference) |
+| `xclaude.zsh` | Shell wrapper — DSL parser, validator, SBPL generator, assembler, trust gate |
+| `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
-| `test_xclaude.bash` | DSL pipeline tests (any platform) |
-| `test_sandbox.zsh` | Sandbox integration tests (macOS only) |
+| `toolchains/*.test.zsh` | Sandbox tests for each toolchain |
+| `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, etc.) |
+| `test_xclaude.bash` | DSL pipeline unit tests (bash, any platform) |
+| `test_sandbox.zsh` | Sandbox integration test runner (zsh, macOS only) |
+| `CLAUDE.md` | Development guide |
 | `DEBUGGING.md` | Guide for diagnosing sandbox issues |
 
 ### SBPL parameter reference
@@ -140,8 +147,8 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 | Parameter | Set by | Example |
 |---|---|---|
 | `HOME` | `xclaude.zsh` | `/Users/tom` |
-| `PROJECT_DIR` | `xclaude.zsh` (from `$PWD`) | `/Users/tom/myproject` |
-| `TMPDIR` | `xclaude.zsh` (resolved) | `/private/var/folders/.../T` |
+| `PROJECT_DIR` | `xclaude.zsh` (resolved via `readlink -f`) | `/Users/tom/myproject` |
+| `TMPDIR` | `xclaude.zsh` (resolved via `readlink -f`) | `/private/var/folders/.../T` |
 | `CACHE_DIR` | `xclaude.zsh` (derived from TMPDIR) | `/private/var/folders/.../C` |
 
 ## Testing
@@ -157,24 +164,32 @@ Tests parser, validator, generator, and assembler — no macOS or sandbox requir
 **Sandbox integration tests** (macOS only):
 
 ```bash
+# All tests (base + all toolchains)
 zsh test_sandbox.zsh
-```
 
-Runs real commands inside `sandbox-exec` with the assembled profile and verifies:
-- Project files are readable/writable
-- Sensitive paths (`~/.ssh`, `~/.aws`, `~/Desktop`, etc.) are blocked
-- `.xclaude` config is write-protected from inside the sandbox
-- Escape vectors (symlinks, path traversal, child processes) are blocked
+# Base profile only
+zsh test_sandbox.zsh --toolchain none
 
-To test with a project config:
+# Specific toolchain(s)
+zsh test_sandbox.zsh --toolchain node
+zsh test_sandbox.zsh --toolchain node,uv
 
-```bash
+# Custom project config
 zsh test_sandbox.zsh --with-config my-project/.xclaude
 ```
+
+Each toolchain is tested in its own parallel CI job with the tool installed. Tests verify:
+- Read/write/exec access to declared paths
+- Tool usability (real operations: npm install, cargo build, uv pip install, etc.)
+- Isolation (sensitive paths remain blocked)
+- Write protection (`.xclaude`, `.env`, `.git/hooks`)
+- Escape vectors (symlinks, path traversal, child processes)
+
+When a test fails unexpectedly, stderr and recent sandbox denial logs are displayed automatically.
 
 ## Compatibility
 
 - macOS 14+ (Apple Silicon and Intel)
-- Claude Code 2.1.x
+- Claude Code 2.1.x+
 - Works with cmux wrapper
 - `sandbox-exec` is deprecated by Apple but still functional (Chromium uses the same approach)
