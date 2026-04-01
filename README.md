@@ -120,7 +120,8 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 | `base.sb` | Core Seatbelt/SBPL profile (hand-written, the only raw SBPL) |
 | `xclaude.sb` | Legacy monolithic profile (kept for reference) |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
-| `test_xclaude.bash` | Test harness for the DSL pipeline |
+| `test_xclaude.bash` | DSL pipeline tests (any platform) |
+| `test_sandbox.zsh` | Sandbox integration tests (macOS only) |
 | `DEBUGGING.md` | Guide for diagnosing sandbox issues |
 
 ### SBPL parameter reference
@@ -134,11 +135,31 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 
 ## Testing
 
+**DSL pipeline tests** (any platform, bash 4+):
+
 ```bash
 bash test_xclaude.bash
 ```
 
-Tests the full DSL pipeline (parser → validator → generator → assembler) without requiring macOS or `sandbox-exec`. Runs on any system with bash 4+.
+Tests parser, validator, generator, and assembler — no macOS or sandbox required.
+
+**Sandbox integration tests** (macOS only):
+
+```bash
+zsh test_sandbox.zsh
+```
+
+Runs real commands inside `sandbox-exec` with the assembled profile and verifies:
+- Project files are readable/writable
+- Sensitive paths (`~/.ssh`, `~/.aws`, `~/Desktop`, etc.) are blocked
+- `.xclaude` config is write-protected from inside the sandbox
+- Escape vectors (symlinks, path traversal, child processes) are blocked
+
+To test with a project config:
+
+```bash
+zsh test_sandbox.zsh --with-config my-project/.xclaude
+```
 
 ## Compatibility
 
