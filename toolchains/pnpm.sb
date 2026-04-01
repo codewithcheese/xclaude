@@ -1,0 +1,27 @@
+;; pnpm package manager
+;;
+;; pnpm uses a content-addressable store at ~/.pnpm-store/ shared
+;; across all projects. The binary installs to ~/.local/share/pnpm/
+;; via the standalone installer. Config at ~/.config/pnpm/rc or
+;; ~/Library/Preferences/pnpm/rc.
+;;
+;; pnpm dlx (like npx) downloads and executes packages from the
+;; store, so the store needs exec permission.
+
+;; Exec — pnpm binary and store (dlx executes packages from store)
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.local/share/pnpm"))
+  (subpath (string-append (param "HOME") "/.pnpm-store")))
+
+;; Read — binary, global store, and config locations
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/pnpm"))
+  (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; macOS pnpm config location
+  (subpath (string-append (param "HOME") "/Library/Preferences/pnpm"))
+  ;; XDG config location
+  (subpath (string-append (param "HOME") "/.config/pnpm")))
+
+;; Write — global store only (content-addressable cache, dlx temp packages)
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.pnpm-store")))

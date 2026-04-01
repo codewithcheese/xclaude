@@ -1,0 +1,22 @@
+;; Python toolchain (pyenv)
+;;
+;; pyenv manages multiple Python versions at ~/.pyenv/versions/.
+;; Shims at ~/.pyenv/shims/ intercept `python` commands and
+;; redirect to the active version.
+;; pyenv binary itself is typically at /opt/homebrew/bin/pyenv
+;; (base profile covers this), but managed Pythons need exec
+;; from ~/.pyenv/.
+
+;; Exec — pyenv-managed Python interpreters and shims
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.pyenv")))
+
+;; Read — pyenv config, versions, and shims
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.pyenv")))
+
+;; Write — shims (regenerated on `pyenv rehash`) and versions
+;; (new Python installs)
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.pyenv/shims"))
+  (subpath (string-append (param "HOME") "/.pyenv/versions")))

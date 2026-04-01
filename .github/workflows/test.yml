@@ -1,0 +1,121 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dsl-tests:
+    name: DSL pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash test_xclaude.bash
+
+  sandbox-base:
+    name: "Sandbox: base profile"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: zsh test_sandbox.zsh --toolchain none
+
+  sandbox-node:
+    name: "Sandbox: node"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install NVM + Node
+        run: |
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          source "$NVM_DIR/nvm.sh"
+          nvm install --lts
+      - run: zsh test_sandbox.zsh --toolchain node
+
+  sandbox-pnpm:
+    name: "Sandbox: pnpm"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        run: curl -fsSL https://get.pnpm.io/install.sh | sh -
+      - run: zsh test_sandbox.zsh --toolchain pnpm
+
+  sandbox-bun:
+    name: "Sandbox: bun"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bun
+        run: curl -fsSL https://bun.sh/install | bash
+      - run: zsh test_sandbox.zsh --toolchain bun
+
+  sandbox-uv:
+    name: "Sandbox: uv"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: zsh test_sandbox.zsh --toolchain uv
+
+  sandbox-rust:
+    name: "Sandbox: rust"
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust via rustup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - run: zsh test_sandbox.zsh --toolchain rust
+
+  sandbox-go:
+    name: "Sandbox: go"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      # go is preinstalled at /usr/local/go on macos-14
+      - run: zsh test_sandbox.zsh --toolchain go
+
+  sandbox-python:
+    name: "Sandbox: python"
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pyenv + Python
+        run: |
+          brew install pyenv
+          eval "$(pyenv init -)"
+          pyenv install 3.12 --skip-existing
+          pyenv global 3.12
+      - run: zsh test_sandbox.zsh --toolchain python
+
+  sandbox-deno:
+    name: "Sandbox: deno"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Deno
+        run: curl -fsSL https://deno.land/install.sh | sh
+      - run: zsh test_sandbox.zsh --toolchain deno
+
+  sandbox-gh:
+    name: "Sandbox: gh"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      # gh is preinstalled via homebrew on macos-14
+      - run: zsh test_sandbox.zsh --toolchain gh
+        env:
+          GH_TOKEN: ${{ secrets.GH_PUBLIC_ONLY }}
+
+  sandbox-huggingface:
+    name: "Sandbox: huggingface"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install huggingface-cli
+        run: pip3 install --break-system-packages huggingface_hub[cli]
+      - run: zsh test_sandbox.zsh --toolchain huggingface

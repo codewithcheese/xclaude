@@ -1,0 +1,17 @@
+;; Hugging Face model cache and auth
+;;
+;; huggingface-cli and Python libraries (transformers, diffusers)
+;; cache downloaded models at ~/.cache/huggingface/hub/.
+;; Auth tokens at ~/.cache/huggingface/token.
+;; Assets and xet (chunk dedup) caches also under ~/.cache/huggingface/.
+;;
+;; No exec needed: huggingface-cli is a Python script that runs
+;; via the system or venv Python interpreter.
+
+;; Read — cached models, tokens, assets
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.cache/huggingface")))
+
+;; Write — model downloads, token storage, assets cache, xet cache
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.cache/huggingface")))

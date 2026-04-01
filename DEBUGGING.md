@@ -3,23 +3,25 @@
 ## Quick test
 
 ```bash
-# Does the profile load without crashing?
-sandbox-exec -D PROJECT_DIR=$PWD -D TMPDIR=$(readlink -f $TMPDIR) \
+# Does the base profile load without crashing?
+sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- /bin/echo "profile ok"
+  -f base.sb -- /bin/echo "profile ok"
 
 # Does Claude run in print mode?
-sandbox-exec -D PROJECT_DIR=$PWD -D TMPDIR=$(readlink -f $TMPDIR) \
+sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- claude --print "Say: hello" < /dev/null
+  -f base.sb -- claude --print "Say: hello" < /dev/null
 
 # Does the TUI render? (uses `script` to allocate a real TTY)
-timeout 5 script -q /dev/null sandbox-exec -D PROJECT_DIR=$PWD \
+timeout 5 script -q /dev/null sandbox-exec -D PROJECT_DIR=$(readlink -f $PWD) \
   -D TMPDIR=$(readlink -f $TMPDIR) \
   -D CACHE_DIR=$(readlink -f $TMPDIR | sed 's|/T.*|/C|') -D HOME=$HOME \
-  -f xclaude.sb -- claude < /dev/null 2>&1 | cat -v | head -10
+  -f base.sb -- claude < /dev/null 2>&1 | cat -v | head -10
 # Look for ANSI escape codes like "Claude Code" — that means the TUI rendered.
 ```
+
+Note: all paths are resolved with `readlink -f` because Seatbelt resolves symlinks before matching (e.g., `/var` → `/private/var`).
 
 ## Viewing sandbox denials
 
@@ -38,7 +40,9 @@ Use `/usr/bin/log` (not `log` — zsh has a built-in that conflicts):
 
 ### Force denial logging
 
-Add `(debug deny)` after `(version 1)` in the profile to ensure all denials are logged, even when they might otherwise be suppressed.
+**Warning**: `(debug deny)` may crash `sandbox-exec` on macOS 14+ (exit code 134). Test before using.
+
+If it works on your macOS version, add `(debug deny)` after `(version 1)` to ensure all denials are logged. Otherwise, rely on `/usr/bin/log show` filtering — sandbox denials are logged by default on most macOS versions.
 
 ### Common denial patterns
 
@@ -60,7 +64,11 @@ The profile has a syntax error or the process can't start. Common causes:
 - **Using `file-read*` for allowlists**: This crashes. Use `file-read-data` for your allowlist and keep `file-read-metadata`, `file-read-xattr`, and `file-map-executable` globally allowed.
 - **Invalid operation names**: e.g., `ioctl*` doesn't exist, use `iokit*`.
 
-### `literal`/`path` doesn't override `subpath` deny
+### Rule precedence: allow vs deny with `path`/`literal`/`subpath`
+
+SBPL rule evaluation is **asymmetric** — allows and denies interact differently:
+
+**Allow `(path)` CANNOT override deny `(subpath)`:**
 
 ```scheme
 (deny file-read-data (subpath "/Users/tom"))
@@ -68,7 +76,16 @@ The profile has a syntax error or the process can't start. Common causes:
 (allow file-read-data (subpath "/Users/tom/project"))  ;; WORKS (subpath-in-subpath)
 ```
 
-Individual file allows (`path`/`literal`) cannot override a parent `subpath` deny. Only a more specific `subpath` can.
+Individual file allows (`path`/`literal`) cannot punch a hole in a parent `subpath` deny. Only a more specific `subpath` allow can.
+
+**Deny `(literal)` CAN override allow `(subpath)` — last-match-wins:**
+
+```scheme
+(allow file-write* (subpath "/Users/tom/project"))
+(deny file-write* (literal "/Users/tom/project/.xclaude"))  ;; WORKS — deny after allow
+```
+
+When a deny comes **after** a matching allow, the deny wins. This is how you protect specific files inside an otherwise writable directory. Use `(literal)` for exact path matching.
 
 ### Symlink resolution
 

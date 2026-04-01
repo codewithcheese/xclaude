@@ -1,0 +1,185 @@
+(version 1)
+(deny default)
+
+;; ============================================================
+;; Non-filesystem permissions
+;; Allowed broadly — the goal of this profile is filesystem
+;; isolation, not network or IPC restriction.
+;; ============================================================
+(allow network*)
+(allow mach*)
+(allow ipc-posix*)
+(allow sysctl*)
+(allow signal)
+(allow iokit*)
+(allow process-info*)
+(allow system*)
+;; Bun checks codesigning status on startup — without this
+;; the TUI silently fails to render (blank screen).
+(allow process-codesigning-status*)
+;; CFPreferences API — node, rustup, and other tools read
+;; user/system preferences on startup.
+(allow user-preference-read)
+
+;; ============================================================
+;; Process execution
+;; ============================================================
+(allow process-fork)
+(allow process-exec
+  ;; System binaries
+  (subpath "/bin")
+  (subpath "/usr/bin")
+  ;; Homebrew binaries (git, node, etc.)
+  (subpath "/opt/homebrew")
+  ;; cmux wrapper lives here and calls the real claude binary
+  (subpath "/Applications")
+  ;; Claude Code — ~/.local/bin/claude is a symlink to
+  ;; ~/.local/share/claude/versions/<ver>. Seatbelt resolves
+  ;; symlinks, so both paths need exec permission.
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/claude"))
+  ;; Scripts within the project
+  (subpath (param "PROJECT_DIR")))
+
+;; ============================================================
+;; Read permissions: strict allowlist for file-read-data
+;;
+;; file-read-metadata: global — needed for stat/realpath on
+;;   path components; without this basic path resolution fails.
+;; file-read-xattr: global — process startup crashes without it
+;;   (discovered via bisection testing).
+;; file-map-executable: global — dyld needs to mmap shared
+;;   libraries from various system paths.
+;; file-read-data: allowlist only — this is the actual security
+;;   boundary for file contents.
+;; ============================================================
+(allow file-read-metadata (subpath "/"))
+(allow file-read-xattr (subpath "/"))
+(allow file-map-executable (subpath "/"))
+
+;; Root directory entry itself — (subpath "/bin") does NOT cover
+;; the "/" path. Without this, process startup crashes (exit 134).
+(allow file-read-data (path "/"))
+
+;; System runtime — needed by dyld, bash, and system CLI tools
+(allow file-read-data
+  (subpath "/bin")
+  (subpath "/sbin")
+  (subpath "/usr")
+  (subpath "/System")
+  (subpath "/Library")
+  (subpath "/private/etc")
+  (subpath "/private/var/db")
+  (subpath "/dev")
+  (subpath "/opt/homebrew"))
+
+;; Temp directories — Claude writes bash output to /tmp/claude-501/
+;; and needs to read it back
+(allow file-read-data
+  (subpath "/private/tmp")
+  (subpath (param "TMPDIR")))
+
+;; Spotlight/mds cache — needed by Security framework for keychain
+;; TMPDIR is .../T/, this is the sibling .../C/ directory
+(allow file-read-data
+  (subpath (param "CACHE_DIR")))
+
+;; cmux wrapper script (bash) in /Applications/cmux.app
+(allow file-read-data
+  (subpath "/Applications"))
+
+;; Claude Code binary (Bun/Mach-O) and symlink target
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/claude")))
+
+;; Claude Code config, settings, and debug logs
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.claude")))
+
+;; Claude Code checks for this file at home root on startup
+(allow file-read-data
+  (path (string-append (param "HOME") "/.claude.json")))
+
+;; Claude Code runtime locks
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/state/claude")))
+
+;; OAuth token — keychain database (read-only)
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Keychains")))
+
+;; git config — needed for git commands
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.gitconfig")))
+
+;; Shell config — Claude reads shell rc files for environment setup
+(allow file-read-data
+  (path (string-append (param "HOME") "/.zshrc"))
+  (path (string-append (param "HOME") "/.bashrc"))
+  (path (string-append (param "HOME") "/.profile"))
+  (path (string-append (param "HOME") "/.zprofile"))
+  (path (string-append (param "HOME") "/.bash_profile"))
+  (path (string-append (param "HOME") "/.zshenv")))
+
+;; Project directory
+(allow file-read-data
+  (subpath (param "PROJECT_DIR")))
+
+;; ============================================================
+;; Write permissions: strict allowlist
+;; ============================================================
+
+(allow file-write*
+  ;; Project directory — primary workspace
+  (subpath (param "PROJECT_DIR"))
+  ;; Claude Code state, debug logs, settings
+  (subpath (string-append (param "HOME") "/.claude"))
+  ;; Claude Code updates ~/.claude.json and sibling lock/temp files
+  (path (string-append (param "HOME") "/.claude.json"))
+  (path (string-append (param "HOME") "/.claude.json.lock"))
+  ;; Claude Code runtime lock files
+  (subpath (string-append (param "HOME") "/.local/state/claude"))
+  ;; Temp directories (TMPDIR is usually /private/var/folders/.../T/)
+  (subpath "/private/tmp")
+  (subpath (param "TMPDIR"))
+  ;; Spotlight/mds cache — sibling of TMPDIR at .../C/
+  ;; Needed by Security framework for keychain access
+  (subpath (param "CACHE_DIR")))
+
+;; ── Write denies (after allows — last-match-wins) ────────────
+;; Protect security-sensitive files inside writable directories.
+;; Uses (literal) for files, (subpath) for directories.
+
+;; Sandbox config — prevents privilege escalation on next launch
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
+
+;; Environment files — often contain secrets and API keys
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.env"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.local"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.development"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.staging"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.test"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.production")))
+
+;; Git hooks — prevent injection of arbitrary code that runs
+;; on git commit, push, etc.
+(deny file-write*
+  (subpath (string-append (param "PROJECT_DIR") "/.git/hooks")))
+
+;; ============================================================
+;; Device and pseudo-terminal access
+;; Needed for terminal I/O and Claude Code's pty-based
+;; subprocess management.
+;; ============================================================
+(allow file-read* file-write* file-ioctl
+  (path "/dev/null")
+  (path "/dev/tty")
+  (path "/dev/random")
+  (path "/dev/urandom")
+  (path "/dev/dtracehelper")
+  (path "/dev/ptmx")
+  (regex #"^/dev/pty.*")
+  (regex #"^/dev/ttys.*"))

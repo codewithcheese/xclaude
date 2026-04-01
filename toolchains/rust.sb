@@ -1,0 +1,31 @@
+;; Rust toolchain (rustup + cargo)
+;;
+;; rustup manages Rust installations at ~/.rustup/.
+;; cargo is the build tool and package manager at ~/.cargo/.
+;; `cargo install` puts binaries in ~/.cargo/bin/.
+;; Dependencies download to ~/.cargo/registry/ and ~/.cargo/git/.
+
+;; Exec — cargo, rustc, and cargo-installed binaries
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.cargo/bin"))
+  ;; rustup shims and toolchain binaries
+  (subpath (string-append (param "HOME") "/.rustup")))
+
+;; Read — full cargo home and rustup
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.cargo"))
+  (subpath (string-append (param "HOME") "/.rustup")))
+
+;; Write — binaries (cargo install), dependency cache, metadata
+(allow file-write*
+  ;; `cargo install` writes compiled binaries here
+  (subpath (string-append (param "HOME") "/.cargo/bin"))
+  ;; crate registry index and downloaded crates
+  (subpath (string-append (param "HOME") "/.cargo/registry"))
+  ;; git-based dependencies
+  (subpath (string-append (param "HOME") "/.cargo/git"))
+  ;; package cache lock file
+  (literal (string-append (param "HOME") "/.cargo/.package-cache"))
+  ;; cargo install metadata — tracks which crates are installed
+  (literal (string-append (param "HOME") "/.cargo/.crates.toml"))
+  (literal (string-append (param "HOME") "/.cargo/.crates2.json")))

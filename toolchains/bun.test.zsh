@@ -1,0 +1,58 @@
+# Bun runtime sandbox tests
+tc_setup bun
+
+tc_fixture_dir "${HOME}/.bun/bin"
+tc_fixture_dir "${HOME}/.bun/install/cache"
+
+# ── Access ──
+t "bun: read ~/.bun"
+tc_fixture_file "${HOME}/.bun/test-data"
+expect_success "allowed" tc_sandboxed cat "${HOME}/.bun/test-data"
+
+t "bun: write ~/.bun/install"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.bun/install/test-write"
+rm -f "${HOME}/.bun/install/test-write"
+
+t "bun: ~/.bun/bin not writable"
+expect_fail "blocked" tc_sandboxed touch "${HOME}/.bun/bin/test-write"
+
+# ── Usability ──
+__bun="${HOME}/.bun/bin/bun"
+if [[ ! -x "$__bun" ]]; then
+  __bun="$(command -v bun 2>/dev/null || echo "")"
+fi
+if [[ -z "$__bun" ]]; then
+  echo "SKIP: bun binary not found" >&2
+  tc_cleanup
+  return 0 2>/dev/null || exit 0
+fi
+
+t "bun: bun --version"
+expect_success "runs" tc_sandboxed "$__bun" --version
+
+t "bun: bun init"
+mkdir -p "${PROJECT_DIR}/bun-test"
+expect_success "bun init" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bun-test' && '$__bun' init -y 2>&1"
+
+t "bun: bun install"
+expect_success "bun add" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bun-test' && '$__bun' add is-odd 2>&1"
+
+t "bun: node_modules created"
+expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/bun-test/node_modules/is-odd"
+
+t "bun: bun run script"
+printf 'console.log("sandbox ok");\n' > "${PROJECT_DIR}/bun-test/test.js"
+expect_success "bun run" tc_sandboxed "$__bun" run "${PROJECT_DIR}/bun-test/test.js"
+
+rm -rf "${PROJECT_DIR}/bun-test"
+
+# NOTE: bunx (bun x) is not tested — it silently exits non-zero
+# inside sandbox-exec with no stderr or sandbox denials. This
+# appears to be a bun-specific issue (not a sandbox policy gap).
+# bun init, bun add, and bun run above prove the toolchain works.
+
+# ── Isolation ──
+t "bun: ~/.ssh blocked"
+expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"
+
+tc_cleanup
