@@ -20,6 +20,17 @@
 ;; CFPreferences API — node, rustup, and other tools read
 ;; user/system preferences on startup.
 (allow user-preference-read)
+;; JIT / dynamic code generation — needed by JS runtimes (V8, JSC,
+;; Bun) for JIT compilation and by WASM runtimes (QuickJS, Wasmer,
+;; Wasmtime) for execution. Safe to allow globally because:
+;; 1. The sandbox is a kernel-level syscall filter, not a memory
+;;    boundary. JIT-compiled code is still sandboxed — all its
+;;    syscalls (open, read, write) are checked against the policy.
+;; 2. Claude can already execute arbitrary code via allowed binaries
+;;    (bash, node, python). JIT doesn't grant new capabilities.
+;; 3. The only risk is kernel exploit hardening (W^X), which is
+;;    not in our threat model (AI agent, not memory corruption).
+(allow dynamic-code-generation)
 
 ;; ============================================================
 ;; Process execution
