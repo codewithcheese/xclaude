@@ -1,0 +1,10 @@
+;; Hugging Face model cache and auth
+;; Provides: model/dataset downloads, hub cache, auth tokens
+
+;; Read — cache and auth
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.cache/huggingface")))
+
+;; Write — model downloads, token storage, assets, xet cache
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.cache/huggingface")))

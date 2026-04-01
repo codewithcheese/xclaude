@@ -1,0 +1,17 @@
+;; pnpm package manager
+;; Provides: pnpm global store, config
+
+;; Exec — pnpm installed via standalone script
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.local/share/pnpm")))
+
+;; Read — binary, config, and global store
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/pnpm"))
+  (subpath (string-append (param "HOME") "/.pnpm-store"))
+  (subpath (string-append (param "HOME") "/Library/Preferences/pnpm"))
+  (subpath (string-append (param "HOME") "/.config/pnpm")))
+
+;; Write — global store (content-addressable cache)
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.pnpm-store")))

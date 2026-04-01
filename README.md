@@ -92,12 +92,14 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | Name | What it allows |
 |---|---|
 | `node` | NVM (`~/.nvm`), npm cache (`~/.npm`) |
+| `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config |
 | `uv` | uv binary, uv cache (`~/.cache/uv`), uv data (`~/.local/share/uv`) |
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache |
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`) |
+| `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
 
 ### User-level config
 
