@@ -6,8 +6,69 @@ on:
     branches: [main]
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.filter.outputs.shared }}
+      node: ${{ steps.filter.outputs.node }}
+      pnpm: ${{ steps.filter.outputs.pnpm }}
+      bun: ${{ steps.filter.outputs.bun }}
+      uv: ${{ steps.filter.outputs.uv }}
+      rust: ${{ steps.filter.outputs.rust }}
+      go: ${{ steps.filter.outputs.go }}
+      python: ${{ steps.filter.outputs.python }}
+      deno: ${{ steps.filter.outputs.deno }}
+      gh: ${{ steps.filter.outputs.gh }}
+      huggingface: ${{ steps.filter.outputs.huggingface }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'base.sb'
+              - 'xclaude.zsh'
+              - 'test_sandbox.zsh'
+              - 'test_xclaude.bash'
+              - 'toolchains/test_helpers.zsh'
+              - '.github/workflows/test.yml'
+            node:
+              - 'toolchains/node.sb'
+              - 'toolchains/node.test.zsh'
+            pnpm:
+              - 'toolchains/pnpm.sb'
+              - 'toolchains/pnpm.test.zsh'
+            bun:
+              - 'toolchains/bun.sb'
+              - 'toolchains/bun.test.zsh'
+            uv:
+              - 'toolchains/uv.sb'
+              - 'toolchains/uv.test.zsh'
+            rust:
+              - 'toolchains/rust.sb'
+              - 'toolchains/rust.test.zsh'
+            go:
+              - 'toolchains/go.sb'
+              - 'toolchains/go.test.zsh'
+            python:
+              - 'toolchains/python.sb'
+              - 'toolchains/python.test.zsh'
+            deno:
+              - 'toolchains/deno.sb'
+              - 'toolchains/deno.test.zsh'
+            gh:
+              - 'toolchains/gh.sb'
+              - 'toolchains/gh.test.zsh'
+            huggingface:
+              - 'toolchains/huggingface.sb'
+              - 'toolchains/huggingface.test.zsh'
+
   dsl-tests:
     name: DSL pipeline
+    needs: changes
+    if: needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +76,8 @@ jobs:
 
   sandbox-base:
     name: "Sandbox: base profile"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +85,8 @@ jobs:
 
   sandbox-node:
     name: "Sandbox: node"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.node == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +100,8 @@ jobs:
 
   sandbox-pnpm:
     name: "Sandbox: pnpm"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.pnpm == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +111,8 @@ jobs:
 
   sandbox-bun:
     name: "Sandbox: bun"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.bun == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +122,8 @@ jobs:
 
   sandbox-uv:
     name: "Sandbox: uv"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.uv == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +133,8 @@ jobs:
 
   sandbox-rust:
     name: "Sandbox: rust"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.rust == 'true'
     runs-on: macos-14
     timeout-minutes: 15
     steps:
@@ -72,6 +145,8 @@ jobs:
 
   sandbox-go:
     name: "Sandbox: go"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.go == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +155,8 @@ jobs:
 
   sandbox-python:
     name: "Sandbox: python"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.python == 'true'
     runs-on: macos-14
     timeout-minutes: 15
     steps:
@@ -94,6 +171,8 @@ jobs:
 
   sandbox-deno:
     name: "Sandbox: deno"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.deno == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +182,8 @@ jobs:
 
   sandbox-gh:
     name: "Sandbox: gh"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.gh == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -113,6 +194,8 @@ jobs:
 
   sandbox-huggingface:
     name: "Sandbox: huggingface"
+    needs: changes
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.huggingface == 'true'
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
