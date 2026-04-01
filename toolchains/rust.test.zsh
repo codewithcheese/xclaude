@@ -53,16 +53,10 @@ expect_success "binary" tc_sandboxed test -f "${PROJECT_DIR}/rust-test/target/de
 
 rm -rf "${PROJECT_DIR}/rust-test"
 
-# cargo install (installs binary to ~/.cargo/bin)
-# Use a lightweight crate to avoid compile timeouts in CI (du-dust is too heavy)
-t "rust: cargo install"
-expect_success "cargo install" tc_sandboxed "$__cargo" install names
-
-t "rust: installed binary in ~/.cargo/bin"
-expect_success "binary" tc_sandboxed test -f "${HOME}/.cargo/bin/names"
-
-t "rust: installed binary runs"
-expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/names" --help
+# NOTE: cargo install is NOT tested because it builds in $TMPDIR
+# and build scripts need exec from there, which we intentionally
+# block (TMPDIR exec is an escape vector). cargo init + cargo build
+# above prove the toolchain works for normal project builds.
 
 # ── Isolation ──
 t "rust: ~/.ssh blocked"

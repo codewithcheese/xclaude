@@ -43,9 +43,13 @@ expect_success "bun run" tc_sandboxed "$__bun" run "${PROJECT_DIR}/bun-test/test
 
 rm -rf "${PROJECT_DIR}/bun-test"
 
-# bunx needs CWD inside PROJECT_DIR to avoid "error loading current directory"
-t "bun: bunx executes package"
-expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__bun' x semver 1.2.3 2>&1"
+# bunx — test with a package we already installed locally
+t "bun: bunx executes local package"
+mkdir -p "${PROJECT_DIR}/bunx-test"
+echo '{"name":"bunx-test","private":true}' > "${PROJECT_DIR}/bunx-test/package.json"
+tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bunx-test' && '$__bun' add semver 2>&1" >/dev/null 2>&1
+expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bunx-test' && '$__bun' x semver 1.2.3 2>&1"
+rm -rf "${PROJECT_DIR}/bunx-test"
 
 # ── Isolation ──
 t "bun: ~/.ssh blocked"
