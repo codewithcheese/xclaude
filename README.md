@@ -187,6 +187,26 @@ Each toolchain is tested in its own parallel CI job with the tool installed. Tes
 
 When a test fails unexpectedly, stderr and recent sandbox denial logs are displayed automatically.
 
+## Known limitations
+
+The sandbox enforces filesystem isolation only. These are accepted trade-offs and known gaps in the base profile.
+
+### No network isolation
+
+All network access is allowed (`(allow network*)`). The sandboxed process can make arbitrary HTTP requests, which means data exfiltration of anything it *can* read (project files, clipboard, etc.) is possible via `curl` or any network client. SBPL may support network filtering by host/IP/port — this has not been explored yet.
+
+### Clipboard readable
+
+`pbpaste` (in `/usr/bin`) can read the system clipboard. If you've copied a password or secret, it's accessible inside the sandbox. There is no SBPL operation to block this — clipboard access goes through Mach IPC, which must be globally allowed for Claude to function.
+
+### Keychain metadata exposed
+
+`security dump-keychain` reveals service names and account names for all keychain entries (e.g. "Chrome Safe Storage", "Arc", "1Password"). Actual password extraction triggers a macOS authorization UI prompt, so secrets are protected by a second layer. Removing `~/Library/Keychains` from the read allowlist would fix this but break OAuth login.
+
+### File metadata globally visible
+
+`file-read-metadata` is globally allowed (required for path resolution). This means `stat` and `test -e` work on any path — file existence, size, timestamps, and permissions are visible even for denied files. File *contents* are still blocked.
+
 ## Compatibility
 
 - macOS 14+ (Apple Silicon and Intel)
