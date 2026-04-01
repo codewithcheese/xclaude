@@ -65,9 +65,12 @@ only `~/.npm` is writable).
 Do NOT add rules for these — they are always available:
 
 **Exec:** `/bin`, `/usr/bin`, `/opt/homebrew`, `~/.local/bin/claude`, `~/.local/share/claude`, project scripts
-**Read:** System paths (`/System`, `/Library`, `/usr`, `/bin`, `/opt/homebrew`), project directory, Claude config (`~/.claude`), git config, shell rc files, tmp dirs, keychain
-**Write:** Project directory, Claude state (`~/.claude`), tmp dirs
+**Read:** System paths (`/System`, `/Library`, `/usr`, `/bin`, `/opt/homebrew`), project directory, Claude config (`~/.claude`), xclaude user config (`~/.config/xclaude`), git config, shell rc files, tmp dirs, keychain
+**Write:** Project directory, Claude state (`~/.claude`), tmp dirs, volatile dir (`/private/var/folders/.../X/` — code-signing clones, Metal shader cache)
+**Other:** `dynamic-code-generation` (JIT/WASM), all network/IPC/Mach, TMPDIR + CACHE_DIR + VOLATILE_DIR (parameterized per-session)
 **Protected (deny-after-allow):** `.xclaude`, `.env*` files, `.git/hooks/`
+
+If a denial is for a path under `/private/var/folders`, it is likely already covered by TMPDIR (.../T/), CACHE_DIR (.../C/), or VOLATILE_DIR (.../X/). Do NOT suggest project rules for these paths.
 
 # Validation constraints
 
