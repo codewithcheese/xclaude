@@ -15,12 +15,17 @@ rm -f "${HOME}/.npm/test-write"
 t "node: ~/.nvm not writable (read-only)"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.nvm/test-write"
 
-if tc_has_cmd node; then
-  t "node: node executable works"
-  expect_success "usable" tc_sandboxed node --version
+# Find node binary installed via NVM (canonical toolchain path)
+__node_bin="$(find "${HOME}/.nvm/versions" -name "node" -type f 2>/dev/null | head -1)"
+if [[ -n "$__node_bin" ]]; then
+  t "node: node executable works via NVM path"
+  expect_success "usable" tc_sandboxed "$__node_bin" --version
 
-  t "node: npm executable works"
-  expect_success "usable" tc_sandboxed npm --version
+  __npm_bin="$(dirname "$__node_bin")/npm"
+  if [[ -x "$__npm_bin" ]]; then
+    t "node: npm executable works via NVM path"
+    expect_success "usable" tc_sandboxed "$__npm_bin" --version
+  fi
 fi
 
 t "node: ~/.ssh blocked"

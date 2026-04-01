@@ -10,6 +10,9 @@ expect_success "allowed" tc_sandboxed cat "${HOME}/.config/gh/hosts.yml"
 t "gh: ~/.config/gh not writable (read-only toolchain)"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.config/gh/test-write"
 
+# gh is typically installed via homebrew (/opt/homebrew/bin/gh)
+# which is in the base profile exec allowlist — the gh toolchain
+# only adds read access to the auth config, not exec.
 if tc_has_cmd gh; then
   t "gh: gh executable works"
   expect_success "usable" tc_sandboxed gh --version

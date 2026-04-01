@@ -17,9 +17,10 @@ t "go: write ~/.cache/go-build"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.cache/go-build/test-write"
 rm -f "${HOME}/.cache/go-build/test-write"
 
-if tc_has_cmd go; then
-  t "go: go executable works"
-  expect_success "usable" tc_sandboxed go version
+# Go at canonical path /usr/local/go/bin
+if [[ -x "/usr/local/go/bin/go" ]]; then
+  t "go: go executable works via /usr/local/go/bin"
+  expect_success "usable" tc_sandboxed /usr/local/go/bin/go version
 fi
 
 t "go: ~/.ssh blocked"

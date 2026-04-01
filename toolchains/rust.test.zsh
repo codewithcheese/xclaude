@@ -22,12 +22,13 @@ t "rust: write ~/.cargo/git"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/git/test-write"
 rm -f "${HOME}/.cargo/git/test-write"
 
-if tc_has_cmd cargo; then
-  t "rust: cargo executable works"
-  expect_success "usable" tc_sandboxed cargo --version
+# Cargo/rustc at canonical path ~/.cargo/bin
+if [[ -x "${HOME}/.cargo/bin/cargo" ]]; then
+  t "rust: cargo executable works via ~/.cargo/bin"
+  expect_success "usable" tc_sandboxed "${HOME}/.cargo/bin/cargo" --version
 
-  t "rust: rustc executable works"
-  expect_success "usable" tc_sandboxed rustc --version
+  t "rust: rustc executable works via ~/.cargo/bin"
+  expect_success "usable" tc_sandboxed "${HOME}/.cargo/bin/rustc" --version
 fi
 
 t "rust: ~/.ssh blocked"

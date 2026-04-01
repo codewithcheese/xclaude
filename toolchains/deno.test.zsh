@@ -11,9 +11,10 @@ t "deno: write ~/.deno"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.deno/test-write"
 rm -f "${HOME}/.deno/test-write"
 
-if tc_has_cmd deno; then
-  t "deno: deno executable works"
-  expect_success "usable" tc_sandboxed deno --version
+# Deno installs to ~/.deno/bin/deno (canonical path)
+if [[ -x "${HOME}/.deno/bin/deno" ]]; then
+  t "deno: deno executable works via ~/.deno/bin"
+  expect_success "usable" tc_sandboxed "${HOME}/.deno/bin/deno" --version
 fi
 
 t "deno: ~/.ssh blocked"

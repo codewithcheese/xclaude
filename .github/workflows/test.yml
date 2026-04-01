@@ -18,7 +18,28 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      # node/npm come preinstalled on macos-14 runners
+
+      # Install tools at their canonical (toolchain) paths so
+      # usability tests exercise the actual SBPL exec/read rules.
+      - name: Install NVM + Node
+        run: |
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          source "$NVM_DIR/nvm.sh"
+          nvm install --lts
+
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install Rust via rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Deno
+        run: curl -fsSL https://deno.land/install.sh | sh
+
+      # go is preinstalled at /usr/local/go on macos-14
+      # gh is preinstalled via homebrew on macos-14
+
       - run: zsh test_sandbox.zsh

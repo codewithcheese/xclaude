@@ -16,9 +16,10 @@ t "uv: write ~/.local/share/uv"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.local/share/uv/test-write"
 rm -f "${HOME}/.local/share/uv/test-write"
 
-if tc_has_cmd uv; then
-  t "uv: uv executable works"
-  expect_success "usable" tc_sandboxed uv --version
+# uv installs to ~/.local/bin/uv (canonical path)
+if [[ -x "${HOME}/.local/bin/uv" ]]; then
+  t "uv: uv executable works via ~/.local/bin"
+  expect_success "usable" tc_sandboxed "${HOME}/.local/bin/uv" --version
 fi
 
 t "uv: ~/.ssh blocked"
