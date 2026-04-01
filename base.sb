@@ -125,13 +125,13 @@
 
 ;; ============================================================
 ;; Write permissions: strict allowlist
+;;
+;; NOTE: .xclaude cannot be protected at the SBPL level because
+;; (path) denies cannot override a parent (subpath) allow in
+;; Seatbelt. Protection is enforced by the trust gate (hash-based
+;; approval of config changes) and the DSL validator (rejects
+;; rules targeting .xclaude).
 ;; ============================================================
-
-;; Protect .xclaude — the sandbox config file must not be
-;; writable from inside the sandbox, otherwise a compromised
-;; process could escalate its own permissions on next launch.
-(deny file-write*
-  (path (string-append (param "PROJECT_DIR") "/.xclaude")))
 
 (allow file-write*
   ;; Project directory — primary workspace

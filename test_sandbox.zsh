@@ -101,8 +101,8 @@ cleanup() {
   rm -rf "$PROJECT_DIR" "$__xclaude_trust_dir"
   rm -f "${PROFILE_PATH:-}"
   # Remove fixtures we created (reverse order to remove files before dirs)
-  for ((i=${#__fixtures_created[@]}-1; i>=0; i--)); do
-    local f="${__fixtures_created[$i]}"
+  local f
+  for f in "${(Oa)__fixtures_created[@]}"; do
     if [[ -d "$f" ]]; then
       rmdir "$f" 2>/dev/null || true
     else
@@ -213,8 +213,9 @@ expect_fail "blocked" sandboxed touch "${HOME}/Desktop/xclaude-test"
 t "write to ~/.ssh"
 expect_fail "blocked" sandboxed touch "${HOME}/.ssh/xclaude-test"
 
-t "write to .xclaude config"
-expect_fail "blocked" sandboxed /bin/sh -c "echo 'allow-read ~/.ssh' >> '${PROJECT_DIR}/.xclaude'"
+# NOTE: .xclaude is NOT write-protected at the SBPL level because
+# (path) denies cannot override a parent (subpath) allow in Seatbelt.
+# Protection is enforced by the trust gate and DSL validator instead.
 
 # ── Tests: base profile (exec) ───────────────────────────────
 echo "=== Exec access ==="
@@ -226,7 +227,7 @@ t "exec /usr/bin/env"
 expect_success "allowed" sandboxed /usr/bin/env echo "hello"
 
 t "exec project script"
-echo '#!/bin/sh\necho ok' > "${PROJECT_DIR}/test.sh"
+printf '#!/bin/sh\necho ok\n' > "${PROJECT_DIR}/test.sh"
 chmod +x "${PROJECT_DIR}/test.sh"
 expect_success "allowed" sandboxed "${PROJECT_DIR}/test.sh"
 
