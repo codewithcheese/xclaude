@@ -1,6 +1,6 @@
 ---
 name: permission-rules
-description: Write .xclaude sandbox permission rules for a project. Use when configuring xclaude sandbox access, choosing toolchains, or declaring file/directory permissions for macOS sandbox-exec.
+description: Fix sandbox-exec denials and write .xclaude permission rules. Use when a command fails with "deny" or "Operation not permitted" inside the xclaude sandbox, or when the user needs to add toolchain or path access to their .xclaude config.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash(ls *), Bash(cat *)
 ---
 
