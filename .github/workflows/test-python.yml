@@ -5,20 +5,12 @@ on:
     paths:
       - 'toolchains/python.sb'
       - 'toolchains/python.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-python.yml'
   pull_request:
     branches: [main]
     paths:
       - 'toolchains/python.sb'
       - 'toolchains/python.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-python.yml'
 
 jobs:

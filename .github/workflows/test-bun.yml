@@ -5,20 +5,12 @@ on:
     paths:
       - 'toolchains/bun.sb'
       - 'toolchains/bun.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-bun.yml'
   pull_request:
     branches: [main]
     paths:
       - 'toolchains/bun.sb'
       - 'toolchains/bun.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-bun.yml'
 
 jobs:

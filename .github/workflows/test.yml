@@ -2,8 +2,22 @@ name: Tests
 on:
   push:
     branches: [main]
+    paths:
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_xclaude.bash'
+      - 'test_sandbox.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_xclaude.bash'
+      - 'test_sandbox.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - '.github/workflows/test.yml'
 
 jobs:
   dsl-tests:

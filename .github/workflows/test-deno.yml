@@ -5,20 +5,12 @@ on:
     paths:
       - 'toolchains/deno.sb'
       - 'toolchains/deno.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-deno.yml'
   pull_request:
     branches: [main]
     paths:
       - 'toolchains/deno.sb'
       - 'toolchains/deno.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-deno.yml'
 
 jobs:

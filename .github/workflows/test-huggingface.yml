@@ -5,20 +5,12 @@ on:
     paths:
       - 'toolchains/huggingface.sb'
       - 'toolchains/huggingface.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-huggingface.yml'
   pull_request:
     branches: [main]
     paths:
       - 'toolchains/huggingface.sb'
       - 'toolchains/huggingface.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-huggingface.yml'
 
 jobs:

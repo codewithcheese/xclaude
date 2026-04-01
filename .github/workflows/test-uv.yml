@@ -5,20 +5,12 @@ on:
     paths:
       - 'toolchains/uv.sb'
       - 'toolchains/uv.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-uv.yml'
   pull_request:
     branches: [main]
     paths:
       - 'toolchains/uv.sb'
       - 'toolchains/uv.test.zsh'
-      - 'toolchains/test_helpers.zsh'
-      - 'base.sb'
-      - 'xclaude.zsh'
-      - 'test_sandbox.zsh'
       - '.github/workflows/test-uv.yml'
 
 jobs:
