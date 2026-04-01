@@ -126,6 +126,13 @@
 ;; ============================================================
 ;; Write permissions: strict allowlist
 ;; ============================================================
+
+;; Protect .xclaude — the sandbox config file must not be
+;; writable from inside the sandbox, otherwise a compromised
+;; process could escalate its own permissions on next launch.
+(deny file-write*
+  (path (string-append (param "PROJECT_DIR") "/.xclaude")))
+
 (allow file-write*
   ;; Project directory — primary workspace
   (subpath (param "PROJECT_DIR"))

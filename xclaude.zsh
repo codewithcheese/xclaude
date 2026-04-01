@@ -77,6 +77,13 @@ __xclaude_validate() {
             return 1
             ;;
         esac
+        # Block rules targeting .xclaude itself — the config file
+        # must not be writable or executable from inside the sandbox
+        local basename="${arg##*/}"
+        if [[ "$basename" = ".xclaude" ]]; then
+          echo "xclaude: cannot target '.xclaude' — sandbox config is protected" >&2
+          return 1
+        fi
         echo "$line"
         ;;
     esac
@@ -138,6 +145,65 @@ __xclaude_path_to_sbpl() {
   fi
 }
 
+# ── Trust gate ────────────────────────────────────────────────
+# .xclaude files are security-sensitive — they control what the
+# sandbox allows. Like direnv, we require explicit approval.
+#
+# Approved configs are tracked by sha256 hash in:
+#   ~/.config/xclaude/trusted
+#
+# Returns 0 if trusted, 1 if denied.
+__xclaude_trust_dir="${HOME}/.config/xclaude"
+__xclaude_trusted_file="${__xclaude_trust_dir}/trusted"
+
+__xclaude_file_hash() {
+  shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
+}
+
+__xclaude_is_trusted() {
+  local file="$1"
+  [[ ! -f "$__xclaude_trusted_file" ]] && return 1
+  local hash="$(__xclaude_file_hash "$file")"
+  grep -qF "$hash" "$__xclaude_trusted_file" 2>/dev/null
+}
+
+__xclaude_trust() {
+  local file="$1"
+  mkdir -p "$__xclaude_trust_dir"
+  local hash="$(__xclaude_file_hash "$file")"
+  # Remove old entries for this file path, then add current hash
+  if [[ -f "$__xclaude_trusted_file" ]]; then
+    grep -v "# ${file}$" "$__xclaude_trusted_file" > "${__xclaude_trusted_file}.tmp" 2>/dev/null || true
+    mv "${__xclaude_trusted_file}.tmp" "$__xclaude_trusted_file"
+  fi
+  echo "${hash} # ${file}" >> "$__xclaude_trusted_file"
+}
+
+__xclaude_check_trust() {
+  local file="$1"
+  [[ ! -f "$file" ]] && return 0
+  __xclaude_is_trusted "$file" && return 0
+
+  # Untrusted or changed — show contents and prompt
+  echo "xclaude: untrusted config: ${file}" >&2
+  echo "─────────────────────────────────────" >&2
+  cat "$file" >&2
+  echo "─────────────────────────────────────" >&2
+  echo -n "xclaude: allow this config? [y/N] " >&2
+  local reply
+  read -r reply
+  case "$reply" in
+    [yY]|[yY][eE][sS])
+      __xclaude_trust "$file"
+      return 0
+      ;;
+    *)
+      echo "xclaude: denied — running with base profile only" >&2
+      return 1
+      ;;
+  esac
+}
+
 # ── Profile assembler ────────────────────────────────────────
 # Combines base.sb + user config + project config into a single
 # SBPL profile written to a temp file. Returns the path.
@@ -162,8 +228,8 @@ __xclaude_assemble() {
     fi
   fi
 
-  # Layer: project config
-  if [[ -f "$project_config" ]]; then
+  # Layer: project config (trust-gated)
+  if [[ -f "$project_config" ]] && __xclaude_check_trust "$project_config"; then
     generated="$(__xclaude_parse "$project_config" | __xclaude_validate | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'

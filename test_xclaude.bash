@@ -78,6 +78,11 @@ __xclaude_validate() {
             return 1
             ;;
         esac
+        local basename="${arg##*/}"
+        if [[ "$basename" = ".xclaude" ]]; then
+          echo "xclaude: cannot target '.xclaude' — sandbox config is protected" >&2
+          return 1
+        fi
         echo "$line"
         ;;
     esac
@@ -322,10 +327,48 @@ assert_fails "echo 'allow-exec /bin/sh' | __xclaude_validate"
 t "rejects /opt/homebrew paths"
 assert_fails "echo 'allow-read /opt/homebrew/lib' | __xclaude_validate"
 
+t "rejects allow-write targeting .xclaude"
+assert_fails "echo 'allow-write ./.xclaude' | __xclaude_validate"
+
+t "rejects allow-read targeting .xclaude"
+assert_fails "echo 'allow-read ./.xclaude' | __xclaude_validate"
+
+t "rejects allow-exec targeting .xclaude"
+assert_fails "echo 'allow-exec ./.xclaude' | __xclaude_validate"
+
+t "rejects absolute path targeting .xclaude"
+assert_fails "echo 'allow-write /some/project/.xclaude' | __xclaude_validate"
+
+t "rejects home path targeting .xclaude"
+assert_fails "echo 'allow-write ~/.xclaude' | __xclaude_validate"
+
+t "allows paths containing xclaude as substring"
+assert_succeeds "echo 'allow-read ~/.xclaude-backup' | __xclaude_validate"
+
 t "passes through valid lines unchanged"
 input="allow-read ~/.config/foo"
 out="$(echo "$input" | __xclaude_validate)"
 assert_eq "$input" "$out"
+
+# ── .xclaude write-protect in base.sb ─────────────────────────
+echo "=== Write protection ==="
+
+t "base.sb contains deny for .xclaude writes"
+out="$(cat "${__xclaude_dir}/base.sb")"
+assert_contains 'deny file-write' "$out"
+assert_contains '/.xclaude' "$out"
+
+t "deny rule appears before allow for PROJECT_DIR"
+base="$(cat "${__xclaude_dir}/base.sb")"
+deny_line="$(echo "$base" | grep -n 'deny file-write' | head -1 | cut -d: -f1)"
+allow_line="$(echo "$base" | grep -n 'allow file-write' | head -1 | cut -d: -f1)"
+if [[ -n "$deny_line" && -n "$allow_line" && "$deny_line" -lt "$allow_line" ]]; then
+  __test_pass=$((__test_pass + 1))
+else
+  __test_fail=$((__test_fail + 1))
+  echo "FAIL: ${__test_name}" >&2
+  echo "  deny on line ${deny_line:-?}, allow on line ${allow_line:-?} — deny must come first" >&2
+fi
 
 # ── Path-to-SBPL tests ───────────────────────────────────────
 echo "=== Path-to-SBPL ==="
