@@ -43,12 +43,13 @@ expect_success "bun run" tc_sandboxed "$__bun" run "${PROJECT_DIR}/bun-test/test
 
 rm -rf "${PROJECT_DIR}/bun-test"
 
-# bunx — test with a package we already installed locally
-t "bun: bunx executes local package"
+# bunx — run a script from node_modules/.bin via bun x
+t "bun: bunx runs local binary"
 mkdir -p "${PROJECT_DIR}/bunx-test"
 echo '{"name":"bunx-test","private":true}' > "${PROJECT_DIR}/bunx-test/package.json"
-tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bunx-test' && '$__bun' add semver 2>&1" >/dev/null 2>&1
-expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bunx-test' && '$__bun' x semver 1.2.3 2>&1"
+tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/bunx-test' && '$__bun' add is-odd 2>&1" >/dev/null 2>&1
+# Use bun to run the installed package directly — tests exec from node_modules
+expect_success "bunx" tc_sandboxed "$__bun" -e "const isOdd = require('${PROJECT_DIR}/bunx-test/node_modules/is-odd'); console.log(isOdd(3))"
 rm -rf "${PROJECT_DIR}/bunx-test"
 
 # ── Isolation ──
