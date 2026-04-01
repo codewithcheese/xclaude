@@ -36,6 +36,9 @@ expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/pnpm-test/node_modu
 
 rm -rf "${PROJECT_DIR}/pnpm-test"
 
+t "pnpm: pnpm dlx executes package"
+expect_success "dlx" tc_sandboxed /bin/sh -c "'$__pnpm_bin' dlx is-odd 3 2>&1"
+
 # ── Isolation ──
 t "pnpm: ~/.ssh blocked"
 expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"

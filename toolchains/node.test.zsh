@@ -39,6 +39,9 @@ expect_success "eval" tc_sandboxed "$__node_bin" -e "console.log(JSON.stringify(
 
 rm -rf "${PROJECT_DIR}/node-test"
 
+t "node: npx executes package"
+expect_success "npx" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}:\$PATH' && npx --yes is-odd 3 2>&1"
+
 # ── Isolation ──
 t "node: ~/.ssh blocked"
 expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"
