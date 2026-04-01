@@ -350,9 +350,25 @@ input="allow-read ~/.config/foo"
 out="$(echo "$input" | __xclaude_validate)"
 assert_eq "$input" "$out"
 
-# NOTE: .xclaude SBPL deny tests removed — Seatbelt cannot deny
-# a specific (path) within an already-allowed (subpath). Protection
-# is enforced by the DSL validator (above) and trust gate instead.
+# ── .xclaude write-protect in base.sb ─────────────────────────
+echo "=== Write protection ==="
+
+t "base.sb denies writes to .xclaude using literal"
+out="$(cat "${__xclaude_dir}/base.sb")"
+assert_contains 'deny file-write' "$out"
+assert_contains '.xclaude' "$out"
+
+t "deny rule appears after allow for PROJECT_DIR"
+base="$(cat "${__xclaude_dir}/base.sb")"
+deny_line="$(echo "$base" | grep -n 'deny file-write' | head -1 | cut -d: -f1)"
+allow_line="$(echo "$base" | grep -n 'allow file-write' | head -1 | cut -d: -f1)"
+if [[ -n "$deny_line" && -n "$allow_line" && "$deny_line" -gt "$allow_line" ]]; then
+  __test_pass=$((__test_pass + 1))
+else
+  __test_fail=$((__test_fail + 1))
+  echo "FAIL: ${__test_name}" >&2
+  echo "  deny on line ${deny_line:-?}, allow on line ${allow_line:-?} — deny must come AFTER allow" >&2
+fi
 
 # ── Path-to-SBPL tests ───────────────────────────────────────
 echo "=== Path-to-SBPL ==="

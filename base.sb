@@ -125,13 +125,6 @@
 
 ;; ============================================================
 ;; Write permissions: strict allowlist
-;;
-;; .xclaude protection model: the config is read by the wrapper
-;; BEFORE sandbox-exec launches, not from inside the sandbox.
-;; If a sandboxed process modifies .xclaude, the trust gate
-;; detects the hash change on next launch and re-prompts for
-;; approval. SBPL cannot exclude a (path) from a (subpath)
-;; allow, so kernel-level write protection is not possible.
 ;; ============================================================
 
 (allow file-write*
@@ -150,6 +143,12 @@
   ;; Spotlight/mds cache — sibling of TMPDIR at .../C/
   ;; Needed by Security framework for keychain access
   (subpath (param "CACHE_DIR")))
+
+;; Protect .xclaude — deny AFTER allow so last-match-wins.
+;; Uses (literal) not (path) — (literal) can override a parent
+;; (subpath) allow when the deny comes after it.
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
 
 ;; ============================================================
 ;; Device and pseudo-terminal access

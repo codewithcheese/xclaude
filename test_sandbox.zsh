@@ -213,9 +213,14 @@ expect_fail "blocked" sandboxed touch "${HOME}/Desktop/xclaude-test"
 t "write to ~/.ssh"
 expect_fail "blocked" sandboxed touch "${HOME}/.ssh/xclaude-test"
 
-# NOTE: .xclaude is NOT write-protected at the SBPL level because
-# (path) denies cannot override a parent (subpath) allow in Seatbelt.
-# Protection is enforced by the trust gate and DSL validator instead.
+t "write to .xclaude config"
+# .xclaude must exist first — deny applies to the literal path
+echo "tool node" > "${PROJECT_DIR}/.xclaude"
+expect_fail "blocked" sandboxed /bin/sh -c "echo 'allow-read ~/.ssh' >> '${PROJECT_DIR}/.xclaude'"
+
+t "create .xclaude where none exists"
+rm -f "${PROJECT_DIR}/.xclaude"
+expect_fail "blocked" sandboxed /bin/sh -c "echo 'allow-read ~/.ssh' > '${PROJECT_DIR}/.xclaude'"
 
 # ── Tests: base profile (exec) ───────────────────────────────
 echo "=== Exec access ==="
