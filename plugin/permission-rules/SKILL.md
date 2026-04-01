@@ -1,6 +1,6 @@
 ---
 name: permission-rules
-description: Fix sandbox-exec denials and write .xclaude permission rules. Use when a command fails with "deny" or "Operation not permitted" inside the xclaude sandbox, or when the user needs to add toolchain or path access to their .xclaude config.
+description: Fix sandbox-exec denials and permission errors. Use when a command fails with "deny", "Operation not permitted", or "sandbox" errors.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash(ls *), Bash(cat *)
 ---
 
