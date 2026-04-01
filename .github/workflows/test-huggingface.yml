@@ -1,0 +1,32 @@
+name: "Sandbox: huggingface"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/huggingface.sb'
+      - 'toolchains/huggingface.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-huggingface.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/huggingface.sb'
+      - 'toolchains/huggingface.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-huggingface.yml'
+
+jobs:
+  sandbox-huggingface:
+    name: "Sandbox: huggingface"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install huggingface-cli
+        run: pip3 install --break-system-packages huggingface_hub[cli]
+      - run: zsh test_sandbox.zsh --toolchain huggingface

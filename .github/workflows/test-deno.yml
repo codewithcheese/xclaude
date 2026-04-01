@@ -1,0 +1,32 @@
+name: "Sandbox: deno"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/deno.sb'
+      - 'toolchains/deno.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-deno.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/deno.sb'
+      - 'toolchains/deno.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-deno.yml'
+
+jobs:
+  sandbox-deno:
+    name: "Sandbox: deno"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Deno
+        run: curl -fsSL https://deno.land/install.sh | sh
+      - run: zsh test_sandbox.zsh --toolchain deno

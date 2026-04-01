@@ -1,0 +1,33 @@
+name: "Sandbox: rust"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/rust.sb'
+      - 'toolchains/rust.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-rust.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/rust.sb'
+      - 'toolchains/rust.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-rust.yml'
+
+jobs:
+  sandbox-rust:
+    name: "Sandbox: rust"
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust via rustup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      - run: zsh test_sandbox.zsh --toolchain rust

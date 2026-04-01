@@ -1,0 +1,36 @@
+name: "Sandbox: node"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/node.sb'
+      - 'toolchains/node.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-node.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/node.sb'
+      - 'toolchains/node.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-node.yml'
+
+jobs:
+  sandbox-node:
+    name: "Sandbox: node"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install NVM + Node
+        run: |
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          source "$NVM_DIR/nvm.sh"
+          nvm install --lts
+      - run: zsh test_sandbox.zsh --toolchain node

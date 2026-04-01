@@ -1,0 +1,31 @@
+name: "Sandbox: go"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/go.sb'
+      - 'toolchains/go.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-go.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/go.sb'
+      - 'toolchains/go.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-go.yml'
+
+jobs:
+  sandbox-go:
+    name: "Sandbox: go"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      # go is preinstalled at /usr/local/go on macos-14
+      - run: zsh test_sandbox.zsh --toolchain go

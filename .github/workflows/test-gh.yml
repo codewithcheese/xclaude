@@ -1,0 +1,33 @@
+name: "Sandbox: gh"
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'toolchains/gh.sb'
+      - 'toolchains/gh.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-gh.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'toolchains/gh.sb'
+      - 'toolchains/gh.test.zsh'
+      - 'toolchains/test_helpers.zsh'
+      - 'base.sb'
+      - 'xclaude.zsh'
+      - 'test_sandbox.zsh'
+      - '.github/workflows/test-gh.yml'
+
+jobs:
+  sandbox-gh:
+    name: "Sandbox: gh"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      # gh is preinstalled via homebrew on macos-14
+      - run: zsh test_sandbox.zsh --toolchain gh
+        env:
+          GH_TOKEN: ${{ secrets.GH_PUBLIC_ONLY }}
