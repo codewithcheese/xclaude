@@ -144,11 +144,24 @@
   ;; Needed by Security framework for keychain access
   (subpath (param "CACHE_DIR")))
 
-;; Protect .xclaude — deny AFTER allow so last-match-wins.
-;; Uses (literal) not (path) — (literal) can override a parent
-;; (subpath) allow when the deny comes after it.
+;; ── Write denies (after allows — last-match-wins) ────────────
+;; Protect security-sensitive files inside writable directories.
+;; Uses (literal) for files, (subpath) for directories.
+
+;; Sandbox config — prevents privilege escalation on next launch
 (deny file-write*
   (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
+
+;; Environment files — often contain secrets and API keys
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.env"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.local"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.production")))
+
+;; Git hooks — prevent injection of arbitrary code that runs
+;; on git commit, push, etc.
+(deny file-write*
+  (subpath (string-append (param "PROJECT_DIR") "/.git/hooks")))
 
 ;; ============================================================
 ;; Device and pseudo-terminal access

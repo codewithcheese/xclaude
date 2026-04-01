@@ -17,6 +17,14 @@ Claude Code's built-in sandbox (`sandbox.enabled` in settings) has [known issues
 
 `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/Desktop`, `~/Downloads`, `~/Documents`, `~/Library` (except Keychains for auth), `~/.zsh_history`, and anything else not explicitly listed.
 
+### Write-protected inside the project
+
+Even though the project directory is writable, these files are protected by deny-after-allow rules (SBPL last-match-wins):
+
+- `.xclaude` — sandbox config, prevents privilege escalation
+- `.env`, `.env.local`, `.env.production` — secrets and API keys
+- `.git/hooks/` — prevents injection of code that runs on git operations
+
 ### Verified escape vectors
 
 Symlink traversal, hardlinks, /tmp script execution, child process inheritance (python, node, bash), fd redirects, and curl exfiltration of blocked files — all blocked by Seatbelt's kernel-level enforcement.

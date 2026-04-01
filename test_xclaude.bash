@@ -358,6 +358,14 @@ out="$(cat "${__xclaude_dir}/base.sb")"
 assert_contains 'deny file-write' "$out"
 assert_contains '.xclaude' "$out"
 
+t "base.sb denies writes to .env files"
+assert_contains '/.env"' "$out"
+assert_contains '/.env.local"' "$out"
+assert_contains '/.env.production"' "$out"
+
+t "base.sb denies writes to .git/hooks"
+assert_contains '.git/hooks' "$out"
+
 t "deny rule appears after allow for PROJECT_DIR"
 base="$(cat "${__xclaude_dir}/base.sb")"
 deny_line="$(echo "$base" | grep -n 'deny file-write' | head -1 | cut -d: -f1)"

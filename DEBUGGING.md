@@ -60,7 +60,11 @@ The profile has a syntax error or the process can't start. Common causes:
 - **Using `file-read*` for allowlists**: This crashes. Use `file-read-data` for your allowlist and keep `file-read-metadata`, `file-read-xattr`, and `file-map-executable` globally allowed.
 - **Invalid operation names**: e.g., `ioctl*` doesn't exist, use `iokit*`.
 
-### `literal`/`path` doesn't override `subpath` deny
+### Rule precedence: allow vs deny with `path`/`literal`/`subpath`
+
+SBPL rule evaluation is **asymmetric** — allows and denies interact differently:
+
+**Allow `(path)` CANNOT override deny `(subpath)`:**
 
 ```scheme
 (deny file-read-data (subpath "/Users/tom"))
@@ -68,7 +72,16 @@ The profile has a syntax error or the process can't start. Common causes:
 (allow file-read-data (subpath "/Users/tom/project"))  ;; WORKS (subpath-in-subpath)
 ```
 
-Individual file allows (`path`/`literal`) cannot override a parent `subpath` deny. Only a more specific `subpath` can.
+Individual file allows (`path`/`literal`) cannot punch a hole in a parent `subpath` deny. Only a more specific `subpath` allow can.
+
+**Deny `(literal)` CAN override allow `(subpath)` — last-match-wins:**
+
+```scheme
+(allow file-write* (subpath "/Users/tom/project"))
+(deny file-write* (literal "/Users/tom/project/.xclaude"))  ;; WORKS — deny after allow
+```
+
+When a deny comes **after** a matching allow, the deny wins. This is how you protect specific files inside an otherwise writable directory. Use `(literal)` for exact path matching.
 
 ### Symlink resolution
 

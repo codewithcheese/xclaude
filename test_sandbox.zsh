@@ -222,6 +222,25 @@ t "create .xclaude where none exists"
 rm -f "${PROJECT_DIR}/.xclaude"
 expect_fail "blocked" sandboxed /bin/sh -c "echo 'allow-read ~/.ssh' > '${PROJECT_DIR}/.xclaude'"
 
+t "write to .env"
+echo "OLD_SECRET=xxx" > "${PROJECT_DIR}/.env"
+expect_fail "blocked" sandboxed /bin/sh -c "echo 'NEW_KEY=stolen' >> '${PROJECT_DIR}/.env'"
+
+t "write to .env.local"
+echo "LOCAL_SECRET=xxx" > "${PROJECT_DIR}/.env.local"
+expect_fail "blocked" sandboxed /bin/sh -c "echo 'KEY=val' >> '${PROJECT_DIR}/.env.local'"
+
+t "write to .env.production"
+echo "PROD_SECRET=xxx" > "${PROJECT_DIR}/.env.production"
+expect_fail "blocked" sandboxed /bin/sh -c "echo 'KEY=val' >> '${PROJECT_DIR}/.env.production'"
+
+t "write to .git/hooks"
+mkdir -p "${PROJECT_DIR}/.git/hooks"
+expect_fail "blocked" sandboxed /bin/sh -c "echo '#!/bin/sh' > '${PROJECT_DIR}/.git/hooks/pre-commit'"
+
+t "regular project file still writable"
+expect_success "allowed" sandboxed touch "${PROJECT_DIR}/normal-file.txt"
+
 # ── Tests: base profile (exec) ───────────────────────────────
 echo "=== Exec access ==="
 
