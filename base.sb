@@ -126,11 +126,12 @@
 ;; ============================================================
 ;; Write permissions: strict allowlist
 ;;
-;; NOTE: .xclaude cannot be protected at the SBPL level because
-;; (path) denies cannot override a parent (subpath) allow in
-;; Seatbelt. Protection is enforced by the trust gate (hash-based
-;; approval of config changes) and the DSL validator (rejects
-;; rules targeting .xclaude).
+;; .xclaude protection model: the config is read by the wrapper
+;; BEFORE sandbox-exec launches, not from inside the sandbox.
+;; If a sandboxed process modifies .xclaude, the trust gate
+;; detects the hash change on next launch and re-prompts for
+;; approval. SBPL cannot exclude a (path) from a (subpath)
+;; allow, so kernel-level write protection is not possible.
 ;; ============================================================
 
 (allow file-write*
