@@ -18,4 +18,7 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      # node/npm come preinstalled on macos-14 runners
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - run: zsh test_sandbox.zsh
