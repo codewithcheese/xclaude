@@ -17,6 +17,9 @@
 ;; Bun checks codesigning status on startup — without this
 ;; the TUI silently fails to render (blank screen).
 (allow process-codesigning-status*)
+;; CFPreferences API — node, rustup, and other tools read
+;; user/system preferences on startup.
+(allow user-preference-read)
 
 ;; ============================================================
 ;; Process execution

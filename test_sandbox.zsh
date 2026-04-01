@@ -151,6 +151,8 @@ echo "$PROFILE" > "$PROFILE_PATH"
 
 # Helper: run a command inside the sandbox
 sandboxed() {
+  # Ensure CWD is readable by the sandbox — tools call getcwd() on startup
+  cd "$PROJECT_DIR"
   sandbox-exec \
     -D "PROJECT_DIR=${PROJECT_DIR}" \
     -D "TMPDIR=${TMPDIR_RESOLVED}" \

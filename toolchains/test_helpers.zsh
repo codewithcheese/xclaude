@@ -31,6 +31,9 @@ tc_setup() {
 }
 
 tc_sandboxed() {
+  # cd to PROJECT_DIR so tools don't try to read the inherited CWD
+  # (which may not be in the sandbox allowlist)
+  cd "$PROJECT_DIR"
   sandbox-exec \
     -D "PROJECT_DIR=${PROJECT_DIR}" \
     -D "TMPDIR=${TMPDIR_RESOLVED}" \
