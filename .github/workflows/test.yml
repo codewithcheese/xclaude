@@ -16,12 +16,13 @@ jobs:
   sandbox-tests:
     name: Sandbox integration
     runs-on: macos-14
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # Install tools at their canonical (toolchain) paths so
-      # usability tests exercise the actual SBPL exec/read rules.
+      # Every toolchain gets its tool installed at the canonical
+      # path so usability tests run unconditionally.
+
       - name: Install NVM + Node
         run: |
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
@@ -29,18 +30,32 @@ jobs:
           source "$NVM_DIR/nvm.sh"
           nvm install --lts
 
+      - name: Install pnpm
+        run: |
+          curl -fsSL https://get.pnpm.io/install.sh | sh -
+
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Install Rust via rustup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      # go is preinstalled at /usr/local/go on macos-14
+
+      - name: Install pyenv
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          brew install pyenv
+          eval "$(pyenv init -)"
+          pyenv install 3.12 --skip-existing
+          pyenv global 3.12
 
       - name: Install Deno
         run: curl -fsSL https://deno.land/install.sh | sh
 
-      # go is preinstalled at /usr/local/go on macos-14
       # gh is preinstalled via homebrew on macos-14
+
+      - name: Install huggingface-cli
+        run: |
+          pip3 install --break-system-packages huggingface_hub[cli]
 
       - run: zsh test_sandbox.zsh

@@ -5,6 +5,7 @@ tc_fixture_dir "${HOME}/.nvm/versions/node"
 tc_fixture_file "${HOME}/.nvm/default-packages"
 tc_fixture_dir "${HOME}/.npm/_cacache"
 
+# ── Access ──
 t "node: read ~/.nvm"
 expect_success "allowed" tc_sandboxed cat "${HOME}/.nvm/default-packages"
 
@@ -15,29 +16,30 @@ rm -f "${HOME}/.npm/test-write"
 t "node: ~/.nvm not writable (read-only)"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.nvm/test-write"
 
-# Find node/npm binaries installed via NVM (canonical toolchain path)
+# ── Usability ──
 __node_bin="$(find "${HOME}/.nvm/versions" -name "node" -type f 2>/dev/null | head -1)"
-if [[ -n "$__node_bin" ]]; then
-  __node_dir="$(dirname "$__node_bin")"
+__node_dir="$(dirname "$__node_bin")"
 
-  t "node: node executable works via NVM path"
-  expect_success "usable" tc_sandboxed "$__node_bin" --version
+t "node: node --version"
+expect_success "runs" tc_sandboxed "$__node_bin" --version
 
-  t "node: npm install (real package)"
-  # Create a minimal project and install a small package
-  mkdir -p "${PROJECT_DIR}/node-test"
-  echo '{"name":"sandbox-test","private":true}' > "${PROJECT_DIR}/node-test/package.json"
-  expect_success "npm install" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}:$PATH' && cd '${PROJECT_DIR}/node-test' && npm install is-odd"
+t "node: npm install (small package)"
+mkdir -p "${PROJECT_DIR}/node-test"
+echo '{"name":"sandbox-test","private":true}' > "${PROJECT_DIR}/node-test/package.json"
+expect_success "npm install" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}:\$PATH' && cd '${PROJECT_DIR}/node-test' && npm install is-odd --prefer-offline 2>&1"
 
-  t "node: installed package exists"
-  expect_success "node_modules created" tc_sandboxed test -d "${PROJECT_DIR}/node-test/node_modules/is-odd"
+t "node: node_modules created"
+expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/node-test/node_modules/is-odd"
 
-  t "node: node can require installed package"
-  expect_success "require works" tc_sandboxed "$__node_bin" -e "require('${PROJECT_DIR}/node-test/node_modules/is-odd')"
+t "node: node require works"
+expect_success "require" tc_sandboxed "$__node_bin" -e "require('${PROJECT_DIR}/node-test/node_modules/is-odd')"
 
-  rm -rf "${PROJECT_DIR}/node-test"
-fi
+t "node: node eval"
+expect_success "eval" tc_sandboxed "$__node_bin" -e "console.log(JSON.stringify({ok:true}))"
 
+rm -rf "${PROJECT_DIR}/node-test"
+
+# ── Isolation ──
 t "node: ~/.ssh blocked"
 expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"
 
