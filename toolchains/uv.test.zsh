@@ -20,6 +20,22 @@ rm -f "${HOME}/.local/share/uv/test-write"
 if [[ -x "${HOME}/.local/bin/uv" ]]; then
   t "uv: uv executable works via ~/.local/bin"
   expect_success "usable" tc_sandboxed "${HOME}/.local/bin/uv" --version
+
+  t "uv: uv pip install (real package)"
+  # Create a venv and install a small package
+  expect_success "uv venv" tc_sandboxed "${HOME}/.local/bin/uv" venv "${PROJECT_DIR}/uv-test-venv"
+  expect_success "uv pip install" tc_sandboxed "${HOME}/.local/bin/uv" pip install --python "${PROJECT_DIR}/uv-test-venv/bin/python" six
+
+  t "uv: installed package importable"
+  expect_success "import works" tc_sandboxed "${PROJECT_DIR}/uv-test-venv/bin/python" -c "import six; print(six.__version__)"
+
+  rm -rf "${PROJECT_DIR}/uv-test-venv"
+
+  t "uv: uv init project"
+  expect_success "uv init" tc_sandboxed "${HOME}/.local/bin/uv" init "${PROJECT_DIR}/uv-test-proj"
+  expect_success "pyproject.toml created" tc_sandboxed test -f "${PROJECT_DIR}/uv-test-proj/pyproject.toml"
+
+  rm -rf "${PROJECT_DIR}/uv-test-proj"
 fi
 
 t "uv: ~/.ssh blocked"

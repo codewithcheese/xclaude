@@ -16,6 +16,7 @@ jobs:
   sandbox-tests:
     name: Sandbox integration
     runs-on: macos-14
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

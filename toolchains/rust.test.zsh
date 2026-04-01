@@ -27,8 +27,17 @@ if [[ -x "${HOME}/.cargo/bin/cargo" ]]; then
   t "rust: cargo executable works via ~/.cargo/bin"
   expect_success "usable" tc_sandboxed "${HOME}/.cargo/bin/cargo" --version
 
-  t "rust: rustc executable works via ~/.cargo/bin"
-  expect_success "usable" tc_sandboxed "${HOME}/.cargo/bin/rustc" --version
+  t "rust: cargo init project"
+  expect_success "cargo init" tc_sandboxed "${HOME}/.cargo/bin/cargo" init "${PROJECT_DIR}/rust-test-proj"
+  expect_success "Cargo.toml created" tc_sandboxed test -f "${PROJECT_DIR}/rust-test-proj/Cargo.toml"
+
+  t "rust: cargo build"
+  expect_success "cargo build" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/rust-test-proj' && '${HOME}/.cargo/bin/cargo' build 2>&1"
+
+  t "rust: compiled binary exists"
+  expect_success "binary exists" tc_sandboxed test -f "${PROJECT_DIR}/rust-test-proj/target/debug/rust-test-proj"
+
+  rm -rf "${PROJECT_DIR}/rust-test-proj"
 fi
 
 t "rust: ~/.ssh blocked"
