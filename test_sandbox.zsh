@@ -64,14 +64,51 @@ TMPDIR_RESOLVED="$(readlink -f "${TMPDIR:-/private/tmp}")"
 CACHE_DIR="${TMPDIR_RESOLVED%/T*}/C"
 HOME_DIR="${HOME}"
 
+# Bypass trust gate — tests manage their own configs
+__xclaude_trust_dir="$(mktemp -d)"
+__xclaude_trusted_file="${__xclaude_trust_dir}/trusted"
+
 # Create test fixtures in the project dir
 echo "hello" > "${PROJECT_DIR}/testfile.txt"
 mkdir -p "${PROJECT_DIR}/subdir"
 echo "nested" > "${PROJECT_DIR}/subdir/nested.txt"
 
+# Create sensitive directory fixtures so tests don't skip on CI.
+# These are real directories with real files — the sandbox must
+# block access to them even though they exist.
+__fixtures_created=()
+__ensure_fixture() {
+  local dir="$1" file="$2"
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir"
+    __fixtures_created+=("$dir")
+  fi
+  if [[ -n "$file" && ! -f "${dir}/${file}" ]]; then
+    echo "xclaude-test-fixture" > "${dir}/${file}"
+    __fixtures_created+=("${dir}/${file}")
+  fi
+}
+
+__ensure_fixture "${HOME}/.ssh" "known_hosts"
+__ensure_fixture "${HOME}/.aws" "credentials"
+__ensure_fixture "${HOME}/.gnupg" ""
+__ensure_fixture "${HOME}/.docker" "config.json"
+__ensure_fixture "${HOME}/.claude" ""
+mkdir -p "${HOME}/Desktop" "${HOME}/Documents" "${HOME}/Downloads" 2>/dev/null || true
+[[ -f "${HOME}/.zsh_history" ]] || { echo "fixture" > "${HOME}/.zsh_history"; __fixtures_created+=("${HOME}/.zsh_history"); }
+
 cleanup() {
-  rm -rf "$PROJECT_DIR"
+  rm -rf "$PROJECT_DIR" "$__xclaude_trust_dir"
   rm -f "${PROFILE_PATH:-}"
+  # Remove fixtures we created (reverse order to remove files before dirs)
+  for ((i=${#__fixtures_created[@]}-1; i>=0; i--)); do
+    local f="${__fixtures_created[$i]}"
+    if [[ -d "$f" ]]; then
+      rmdir "$f" 2>/dev/null || true
+    else
+      rm -f "$f" 2>/dev/null || true
+    fi
+  done
 }
 trap cleanup EXIT
 
@@ -122,70 +159,34 @@ t "read /etc/hosts"
 expect_success "allowed" sandboxed cat /private/etc/hosts
 
 t "read ~/.claude directory"
-if [[ -d "${HOME}/.claude" ]]; then
-  expect_success "allowed" sandboxed ls "${HOME}/.claude"
-else
-  skip "~/.claude doesn't exist"
-fi
+expect_success "allowed" sandboxed ls "${HOME}/.claude"
 
 # ── Tests: base profile (blocked reads) ──────────────────────
 echo "=== Blocked reads ==="
 
 t "read ~/.ssh"
-if [[ -d "${HOME}/.ssh" ]]; then
-  expect_fail "blocked" sandboxed cat "${HOME}/.ssh/known_hosts"
-else
-  skip "~/.ssh doesn't exist"
-fi
+expect_fail "blocked" sandboxed cat "${HOME}/.ssh/known_hosts"
 
 t "read ~/.aws"
-if [[ -d "${HOME}/.aws" ]]; then
-  expect_fail "blocked" sandboxed cat "${HOME}/.aws/credentials"
-else
-  skip "~/.aws doesn't exist"
-fi
+expect_fail "blocked" sandboxed cat "${HOME}/.aws/credentials"
 
 t "read ~/Desktop"
-if [[ -d "${HOME}/Desktop" ]]; then
-  expect_fail "blocked" sandboxed ls "${HOME}/Desktop"
-else
-  skip "~/Desktop doesn't exist"
-fi
+expect_fail "blocked" sandboxed ls "${HOME}/Desktop"
 
 t "read ~/Documents"
-if [[ -d "${HOME}/Documents" ]]; then
-  expect_fail "blocked" sandboxed ls "${HOME}/Documents"
-else
-  skip "~/Documents doesn't exist"
-fi
+expect_fail "blocked" sandboxed ls "${HOME}/Documents"
 
 t "read ~/Downloads"
-if [[ -d "${HOME}/Downloads" ]]; then
-  expect_fail "blocked" sandboxed ls "${HOME}/Downloads"
-else
-  skip "~/Downloads doesn't exist"
-fi
+expect_fail "blocked" sandboxed ls "${HOME}/Downloads"
 
 t "read ~/.gnupg"
-if [[ -d "${HOME}/.gnupg" ]]; then
-  expect_fail "blocked" sandboxed ls "${HOME}/.gnupg"
-else
-  skip "~/.gnupg doesn't exist"
-fi
+expect_fail "blocked" sandboxed ls "${HOME}/.gnupg"
 
 t "read ~/.docker"
-if [[ -d "${HOME}/.docker" ]]; then
-  expect_fail "blocked" sandboxed cat "${HOME}/.docker/config.json"
-else
-  skip "~/.docker doesn't exist"
-fi
+expect_fail "blocked" sandboxed cat "${HOME}/.docker/config.json"
 
 t "read ~/.zsh_history"
-if [[ -f "${HOME}/.zsh_history" ]]; then
-  expect_fail "blocked" sandboxed cat "${HOME}/.zsh_history"
-else
-  skip "~/.zsh_history doesn't exist"
-fi
+expect_fail "blocked" sandboxed cat "${HOME}/.zsh_history"
 
 # ── Tests: base profile (writes) ─────────────────────────────
 echo "=== Write access ==="
@@ -207,11 +208,7 @@ t "write to home root"
 expect_fail "blocked" sandboxed touch "${HOME}/xclaude-test-should-not-exist"
 
 t "write to ~/Desktop"
-if [[ -d "${HOME}/Desktop" ]]; then
-  expect_fail "blocked" sandboxed touch "${HOME}/Desktop/xclaude-test"
-else
-  skip "~/Desktop doesn't exist"
-fi
+expect_fail "blocked" sandboxed touch "${HOME}/Desktop/xclaude-test"
 
 t "write to ~/.ssh"
 expect_fail "blocked" sandboxed touch "${HOME}/.ssh/xclaude-test"
@@ -237,12 +234,8 @@ expect_success "allowed" sandboxed "${PROJECT_DIR}/test.sh"
 echo "=== Escape vectors ==="
 
 t "symlink escape: link to ~/.ssh from project dir"
-ln -sf "${HOME}/.ssh" "${PROJECT_DIR}/ssh-link" 2>/dev/null || true
-if [[ -L "${PROJECT_DIR}/ssh-link" ]] && [[ -d "${HOME}/.ssh" ]]; then
-  expect_fail "blocked" sandboxed cat "${PROJECT_DIR}/ssh-link/known_hosts"
-else
-  skip "couldn't create symlink or ~/.ssh missing"
-fi
+ln -sf "${HOME}/.ssh" "${PROJECT_DIR}/ssh-link"
+expect_fail "blocked" sandboxed cat "${PROJECT_DIR}/ssh-link/known_hosts"
 
 t "path traversal via .."
 expect_fail "blocked" sandboxed cat "${PROJECT_DIR}/../../.ssh/known_hosts"

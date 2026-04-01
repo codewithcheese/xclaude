@@ -1,0 +1,21 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dsl-tests:
+    name: DSL pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash test_xclaude.bash
+
+  sandbox-tests:
+    name: Sandbox integration
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: zsh test_sandbox.zsh
