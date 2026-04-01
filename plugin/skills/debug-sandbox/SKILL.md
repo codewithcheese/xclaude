@@ -52,6 +52,8 @@ Comments start with `#`. Blank lines are ignored.
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens (`~/.cache/huggingface`) |
+| `cmux` | cmux app bundle (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
+| `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright` read+write+exec) |
 
 Always prefer a `tool` directive over manual `allow-*` rules when a toolchain exists.
 Toolchains are vetted for least privilege (e.g. `node` makes `~/.nvm` read-only,
@@ -91,10 +93,11 @@ If an alternative exists that works within current permissions, recommend it and
 
 ## Phase 2 — Discover
 
-If permissions must be widened, examine the project:
+If permissions must be widened, examine what's already configured and what the project needs:
 
-1. **Check for existing `.xclaude`** — read it if present (this may be a revision)
-2. **Identify the tech stack** — look at package.json, Cargo.toml, pyproject.toml, go.mod, etc.
+1. **Check user-level config** — read `~/.config/xclaude/config` if it exists. This contains toolchains and rules that apply to ALL projects (e.g. `tool cmux`, shell config symlink targets). Do not duplicate or re-suggest rules that are already in user config.
+2. **Check project `.xclaude`** — read it if present (this may be a revision)
+3. **Identify the tech stack** — look at package.json, Cargo.toml, pyproject.toml, go.mod, etc.
 3. **Ask the user** what tools they use if the project doesn't make it obvious
 4. **Identify non-standard paths** — config files, data directories, custom binaries outside the project
 

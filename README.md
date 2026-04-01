@@ -106,6 +106,8 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
+| `cmux` | cmux terminal multiplexer (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
+| `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright`) |
 
 ### User-level config
 

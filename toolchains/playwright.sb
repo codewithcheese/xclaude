@@ -1,0 +1,16 @@
+;; Playwright browser automation
+;;
+;; Playwright downloads browsers to ~/Library/Caches/ms-playwright/ on macOS.
+;; The playwright CLI is typically run from node_modules (project-local),
+;; which is already covered by PROJECT_DIR exec/read/write permissions.
+;; This toolchain covers the shared browser cache outside the project.
+
+;; Read + exec — downloaded browser binaries (Chromium, Firefox, WebKit)
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Caches/ms-playwright")))
+(allow process-exec
+  (subpath (string-append (param "HOME") "/Library/Caches/ms-playwright")))
+
+;; Write — browser downloads and cache management
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Caches/ms-playwright")))

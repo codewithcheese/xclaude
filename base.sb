@@ -31,8 +31,6 @@
   (subpath "/usr/bin")
   ;; Homebrew binaries (git, node, etc.)
   (subpath "/opt/homebrew")
-  ;; cmux wrapper lives here and calls the real claude binary
-  (subpath "/Applications")
   ;; Claude Code — ~/.local/bin/claude is a symlink to
   ;; ~/.local/share/claude/versions/<ver>. Seatbelt resolves
   ;; symlinks, so both paths need exec permission.
@@ -84,9 +82,6 @@
 (allow file-read-data
   (subpath (param "CACHE_DIR")))
 
-;; cmux wrapper script (bash) in /Applications/cmux.app
-(allow file-read-data
-  (subpath "/Applications"))
 
 ;; Claude Code binary (Bun/Mach-O) and symlink target
 (allow file-read-data

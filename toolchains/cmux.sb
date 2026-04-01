@@ -1,0 +1,26 @@
+;; cmux terminal multiplexer
+;;
+;; cmux wraps Claude Code with session management and hooks.
+;; Binary and claude wrapper at /Applications/cmux.app/Contents/Resources/bin/.
+;; Runtime state: IPC socket and session data at ~/Library/Application Support/cmux/.
+;; Async log at ~/Library/Caches/cmux/.
+;; Install state file at ~/Library/Caches/INSTALLATION (created/deleted during updates).
+
+;; Exec — cmux binary and its claude wrapper
+(allow process-exec
+  (subpath "/Applications/cmux.app"))
+
+;; Read — app bundle and runtime state (IPC socket, session data)
+(allow file-read-data
+  (subpath "/Applications/cmux.app")
+  (subpath (string-append (param "HOME") "/Library/Application Support/cmux")))
+
+;; Write — async operation log
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Caches/cmux")))
+
+;; Write — install state file (created and deleted during cmux updates)
+(allow file-write*
+  (literal (string-append (param "HOME") "/Library/Caches/INSTALLATION")))
+(allow file-read-data
+  (literal (string-append (param "HOME") "/Library/Caches/INSTALLATION")))
