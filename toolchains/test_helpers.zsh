@@ -24,12 +24,8 @@ tc_setup() {
   echo "tool ${tc_name}" > "${PROJECT_DIR}/.xclaude"
   __xclaude_trust "${PROJECT_DIR}/.xclaude"
 
-  # Assemble and inject (debug deny) for denial logging
   local tc_profile
   tc_profile="$(__xclaude_assemble "$PROJECT_DIR")"
-  # Insert (debug deny) after (version 1) so all denials are logged
-  tc_profile="${tc_profile/(version 1)/(version 1)
-(debug deny)}"
   __tc_profile_path="${TMPDIR_RESOLVED}/xclaude-tc-${tc_name}-$$.sb"
   echo "$tc_profile" > "$__tc_profile_path"
 }
@@ -44,16 +40,6 @@ tc_sandboxed() {
     -- "$@"
 }
 
-# Show recent sandbox denial log entries. Called on unexpected failures.
-tc_show_denials() {
-  echo "  recent sandbox denials:" >&2
-  /usr/bin/log show --last 5s \
-    --predicate 'eventMessage CONTAINS "deny"' \
-    --style compact 2>/dev/null \
-    | /usr/bin/grep -i "deny" \
-    | /usr/bin/tail -10 \
-    | /usr/bin/sed 's/^/    /' >&2
-}
 
 tc_fixture_dir() {
   local dir="$1"
