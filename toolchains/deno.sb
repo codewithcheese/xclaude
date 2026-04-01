@@ -1,11 +1,18 @@
 ;; Deno toolchain
-;; Provides: deno runtime, module cache
+;;
+;; Deno installs to ~/.deno/bin/deno via its install script.
+;; Module cache, compiled cache, and downloaded dependencies
+;; all live under ~/.deno/.
+;; `deno install` puts binaries in ~/.deno/bin/.
 
+;; Exec — deno binary and deno-installed scripts
 (allow process-exec
   (subpath (string-append (param "HOME") "/.deno/bin")))
 
+;; Read — binary, module cache, type definitions
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.deno")))
 
+;; Write — module cache, compiled cache, installed scripts
 (allow file-write*
   (subpath (string-append (param "HOME") "/.deno")))

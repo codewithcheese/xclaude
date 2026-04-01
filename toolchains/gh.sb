@@ -1,5 +1,10 @@
 ;; GitHub CLI toolchain
-;; Provides: gh command, auth tokens
+;;
+;; gh binary is at /opt/homebrew/bin/gh (base profile covers exec).
+;; This toolchain only grants read access to auth config.
+;; gh stores OAuth tokens and host config at ~/.config/gh/.
+;; Read-only: the sandbox should not allow modifying auth tokens.
 
+;; Read — auth tokens and host configuration
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.config/gh")))

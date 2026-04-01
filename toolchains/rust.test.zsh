@@ -21,14 +21,14 @@ rm -f "${HOME}/.cargo/registry/test-write"
 
 # ── Usability ──
 __cargo="${HOME}/.cargo/bin/cargo"
-__rustc="${HOME}/.cargo/bin/rustc"
 
 t "rust: cargo --version"
 expect_success "runs" tc_sandboxed "$__cargo" --version
 
 t "rust: rustc --version"
-expect_success "runs" tc_sandboxed "$__rustc" --version
+expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/rustc" --version
 
+# cargo init + build
 t "rust: cargo init"
 expect_success "cargo init" tc_sandboxed "$__cargo" init "${PROJECT_DIR}/rust-test"
 
@@ -39,6 +39,16 @@ t "rust: compiled binary exists"
 expect_success "binary" tc_sandboxed test -f "${PROJECT_DIR}/rust-test/target/debug/rust-test"
 
 rm -rf "${PROJECT_DIR}/rust-test"
+
+# cargo install (installs binary to ~/.cargo/bin)
+t "rust: cargo install"
+expect_success "cargo install" tc_sandboxed "$__cargo" install du-dust
+
+t "rust: installed binary in ~/.cargo/bin"
+expect_success "binary" tc_sandboxed test -f "${HOME}/.cargo/bin/dust"
+
+t "rust: installed binary runs"
+expect_success "runs" tc_sandboxed "${HOME}/.cargo/bin/dust" --version
 
 # ── Isolation ──
 t "rust: ~/.ssh blocked"

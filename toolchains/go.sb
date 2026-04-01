@@ -1,16 +1,31 @@
 ;; Go toolchain
-;; Provides: go compiler, module cache, build cache
+;;
+;; Go compiler is at /usr/local/go (macOS default or Homebrew).
+;; GOPATH defaults to ~/go — modules cached at ~/go/pkg/mod/,
+;; installed binaries at ~/go/bin/.
+;; Build cache at ~/.cache/go-build.
+;; `go install` downloads, compiles, and installs binaries to ~/go/bin.
 
+;; Exec — Go compiler and go-installed binaries
 (allow process-exec
+  ;; Go compiler itself
   (subpath "/usr/local/go")
+  ;; Binaries installed via `go install`
   (subpath (string-append (param "HOME") "/go/bin"))
+  ;; Alternative go install location
   (subpath (string-append (param "HOME") "/.local/go")))
 
+;; Read — compiler, workspace, and build cache
 (allow file-read-data
   (subpath "/usr/local/go")
   (subpath (string-append (param "HOME") "/go"))
   (subpath (string-append (param "HOME") "/.cache/go-build")))
 
+;; Write — installed binaries, module cache, and build cache
 (allow file-write*
+  ;; `go install` writes compiled binaries here
+  (subpath (string-append (param "HOME") "/go/bin"))
+  ;; downloaded module source (go mod download)
   (subpath (string-append (param "HOME") "/go/pkg"))
+  ;; compiled object cache
   (subpath (string-append (param "HOME") "/.cache/go-build")))

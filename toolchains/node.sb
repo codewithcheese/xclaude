@@ -1,15 +1,22 @@
 ;; Node.js toolchain (NVM + npm + npx)
-;; Provides: node, npm, npx via NVM; npm cache writes
+;;
+;; NVM manages multiple node versions at ~/.nvm/versions/.
+;; npm stores its package cache at ~/.npm/.
+;; npx downloads and executes one-off packages from ~/.npm/_npx/.
 
-;; Exec — NVM-managed node/npm/npx binaries AND npm cache
-;; npx downloads packages to ~/.npm/_npx/ and executes from there
+;; Exec — NVM-managed binaries (node, npm, npx) and npx cache.
+;; npx needs exec from ~/.npm because it downloads packages to
+;; ~/.npm/_npx/ and runs them directly from there.
 (allow process-exec
   (subpath (string-append (param "HOME") "/.nvm"))
   (subpath (string-append (param "HOME") "/.npm")))
 
+;; Read — node versions, npm config/cache
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.nvm"))
   (subpath (string-append (param "HOME") "/.npm")))
 
+;; Write — npm cache only. NVM directory is read-only to prevent
+;; modification of the node installation itself.
 (allow file-write*
   (subpath (string-append (param "HOME") "/.npm")))

@@ -1,14 +1,32 @@
 ;; Python uv toolchain
-;; Provides: uv package manager, pip cache, virtualenv management
+;;
+;; uv is a fast Python package manager. It installs to ~/.local/bin/uv.
+;; uvx (like npx) runs Python tools without global install.
+;; `uv tool install` puts persistent tool binaries in ~/.local/bin/.
+;; Cache is at ~/Library/Caches/uv on macOS (not ~/.cache/uv).
+;; Tool environments live at ~/.local/share/uv/tools/.
 
+;; Exec — uv/uvx binary and tool environments
+;; ~/.local/bin has uv, uvx, and binaries from `uv tool install`
+;; ~/.local/share/uv has tool venvs that uvx/tool need to execute
 (allow process-exec
   (subpath (string-append (param "HOME") "/.local/bin"))
   (subpath (string-append (param "HOME") "/.local/share/uv")))
 
+;; Read — tool data and cache
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.local/share/uv"))
+  ;; macOS cache (uv uses ~/Library/Caches/uv on macOS)
+  (subpath (string-append (param "HOME") "/Library/Caches/uv"))
+  ;; Linux/XDG fallback
   (subpath (string-append (param "HOME") "/.cache/uv")))
 
+;; Write — cache (package downloads, uvx envs), tool data, and tool binaries
 (allow file-write*
+  ;; tool environments and metadata
   (subpath (string-append (param "HOME") "/.local/share/uv"))
-  (subpath (string-append (param "HOME") "/.cache/uv")))
+  ;; package cache (downloads, wheel builds)
+  (subpath (string-append (param "HOME") "/Library/Caches/uv"))
+  (subpath (string-append (param "HOME") "/.cache/uv"))
+  ;; `uv tool install` writes binaries/symlinks here
+  (subpath (string-append (param "HOME") "/.local/bin")))

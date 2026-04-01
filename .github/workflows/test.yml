@@ -31,8 +31,10 @@ jobs:
           nvm install --lts
 
       - name: Install pnpm
-        run: |
-          curl -fsSL https://get.pnpm.io/install.sh | sh -
+        run: curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+      - name: Install Bun
+        run: curl -fsSL https://bun.sh/install | bash
 
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -42,7 +44,7 @@ jobs:
 
       # go is preinstalled at /usr/local/go on macos-14
 
-      - name: Install pyenv
+      - name: Install pyenv + Python
         run: |
           brew install pyenv
           eval "$(pyenv init -)"
@@ -55,7 +57,6 @@ jobs:
       # gh is preinstalled via homebrew on macos-14
 
       - name: Install huggingface-cli
-        run: |
-          pip3 install --break-system-packages huggingface_hub[cli]
+        run: pip3 install --break-system-packages huggingface_hub[cli]
 
       - run: zsh test_sandbox.zsh

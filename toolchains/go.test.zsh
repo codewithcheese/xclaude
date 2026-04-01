@@ -14,6 +14,10 @@ t "go: write ~/go/pkg"
 expect_success "allowed" tc_sandboxed touch "${HOME}/go/pkg/test-write"
 rm -f "${HOME}/go/pkg/test-write"
 
+t "go: write ~/go/bin"
+expect_success "allowed" tc_sandboxed touch "${HOME}/go/bin/test-write"
+rm -f "${HOME}/go/bin/test-write"
+
 t "go: write ~/.cache/go-build"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.cache/go-build/test-write"
 rm -f "${HOME}/.cache/go-build/test-write"
@@ -24,6 +28,7 @@ __go="/usr/local/go/bin/go"
 t "go: go version"
 expect_success "runs" tc_sandboxed "$__go" version
 
+# go mod init + build
 t "go: go mod init"
 mkdir -p "${PROJECT_DIR}/go-test"
 expect_success "mod init" tc_sandboxed "$__go" mod init sandbox-test -C "${PROJECT_DIR}/go-test"
@@ -36,6 +41,16 @@ t "go: run compiled binary"
 expect_success "binary runs" tc_sandboxed "${PROJECT_DIR}/go-test/test-bin"
 
 rm -rf "${PROJECT_DIR}/go-test"
+
+# go install (installs binary to ~/go/bin)
+t "go: go install"
+expect_success "go install" tc_sandboxed /bin/sh -c "GOPATH='${HOME}/go' GOBIN='${HOME}/go/bin' '$__go' install github.com/oligot/go-mod-upgrade@latest 2>&1"
+
+t "go: installed binary in ~/go/bin"
+expect_success "binary" tc_sandboxed test -f "${HOME}/go/bin/go-mod-upgrade"
+
+t "go: installed binary runs"
+expect_success "runs" tc_sandboxed "${HOME}/go/bin/go-mod-upgrade" --help
 
 # ── Isolation ──
 t "go: ~/.ssh blocked"

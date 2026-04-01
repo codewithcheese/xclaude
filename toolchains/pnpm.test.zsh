@@ -19,25 +19,29 @@ t "pnpm: read config"
 expect_success "allowed" tc_sandboxed cat "${HOME}/.config/pnpm/rc"
 
 # ── Usability ──
-# pnpm standalone installs to ~/.local/share/pnpm, homebrew to /opt/homebrew/bin
-__pnpm_bin="${HOME}/.local/share/pnpm/pnpm"
-[[ -x "$__pnpm_bin" ]] || __pnpm_bin="$(command -v pnpm 2>/dev/null)"
+__pnpm="${HOME}/.local/share/pnpm/pnpm"
+[[ -x "$__pnpm" ]] || __pnpm="$(command -v pnpm 2>/dev/null)"
 
 t "pnpm: pnpm --version"
-expect_success "runs" tc_sandboxed "$__pnpm_bin" --version
+expect_success "runs" tc_sandboxed "$__pnpm" --version
 
-t "pnpm: pnpm install (small package)"
+# pnpm add
+t "pnpm: pnpm add"
 mkdir -p "${PROJECT_DIR}/pnpm-test"
 echo '{"name":"sandbox-test","private":true}' > "${PROJECT_DIR}/pnpm-test/package.json"
-expect_success "pnpm install" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/pnpm-test' && '$__pnpm_bin' add is-odd 2>&1"
+expect_success "pnpm add" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/pnpm-test' && '$__pnpm' add is-odd 2>&1"
 
 t "pnpm: node_modules created"
 expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/pnpm-test/node_modules/is-odd"
 
+t "pnpm: pnpm-lock.yaml created"
+expect_success "lockfile" tc_sandboxed test -f "${PROJECT_DIR}/pnpm-test/pnpm-lock.yaml"
+
 rm -rf "${PROJECT_DIR}/pnpm-test"
 
+# pnpm dlx (downloads + executes from store)
 t "pnpm: pnpm dlx executes package"
-expect_success "dlx" tc_sandboxed /bin/sh -c "'$__pnpm_bin' dlx is-odd 3 2>&1"
+expect_success "dlx" tc_sandboxed /bin/sh -c "'$__pnpm' dlx is-odd 3 2>&1"
 
 # ── Isolation ──
 t "pnpm: ~/.ssh blocked"

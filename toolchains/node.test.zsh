@@ -1,4 +1,4 @@
-# Node.js / npm toolchain sandbox tests
+# Node.js toolchain (node, npm, npx) sandbox tests
 tc_setup node
 
 tc_fixture_dir "${HOME}/.nvm/versions/node"
@@ -23,7 +23,8 @@ __node_dir="$(dirname "$__node_bin")"
 t "node: node --version"
 expect_success "runs" tc_sandboxed "$__node_bin" --version
 
-t "node: npm install (small package)"
+# npm install
+t "node: npm install"
 mkdir -p "${PROJECT_DIR}/node-test"
 echo '{"name":"sandbox-test","private":true}' > "${PROJECT_DIR}/node-test/package.json"
 expect_success "npm install" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}:\$PATH' && cd '${PROJECT_DIR}/node-test' && npm install is-odd --prefer-offline 2>&1"
@@ -31,16 +32,22 @@ expect_success "npm install" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}
 t "node: node_modules created"
 expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/node-test/node_modules/is-odd"
 
-t "node: node require works"
+t "node: node require installed package"
 expect_success "require" tc_sandboxed "$__node_bin" -e "require('${PROJECT_DIR}/node-test/node_modules/is-odd')"
-
-t "node: node eval"
-expect_success "eval" tc_sandboxed "$__node_bin" -e "console.log(JSON.stringify({ok:true}))"
 
 rm -rf "${PROJECT_DIR}/node-test"
 
+# npx (downloads + executes from ~/.npm/_npx/)
 t "node: npx executes package"
 expect_success "npx" tc_sandboxed /bin/sh -c "export PATH='${__node_dir}:\$PATH' && npx --yes is-odd 3 2>&1"
+
+# node eval
+t "node: node eval"
+expect_success "eval" tc_sandboxed "$__node_bin" -e "console.log(JSON.stringify({ok:true}))"
+
+# node http (exercises network from sandbox)
+t "node: node http request"
+expect_success "http" tc_sandboxed "$__node_bin" -e "require('https').get('https://httpbin.org/get',r=>{r.on('data',()=>{});r.on('end',()=>console.log('ok'))})"
 
 # ── Isolation ──
 t "node: ~/.ssh blocked"

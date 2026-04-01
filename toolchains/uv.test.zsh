@@ -2,43 +2,69 @@
 tc_setup uv
 
 tc_fixture_dir "${HOME}/.cache/uv"
+tc_fixture_dir "${HOME}/Library/Caches/uv"
 tc_fixture_dir "${HOME}/.local/share/uv"
-tc_fixture_file "${HOME}/.cache/uv/test-data"
 
 # ── Access ──
-t "uv: read ~/.cache/uv"
-expect_success "allowed" tc_sandboxed cat "${HOME}/.cache/uv/test-data"
-
-t "uv: write ~/.cache/uv"
-expect_success "allowed" tc_sandboxed touch "${HOME}/.cache/uv/test-write"
-rm -f "${HOME}/.cache/uv/test-write"
+t "uv: write ~/Library/Caches/uv (macOS cache)"
+expect_success "allowed" tc_sandboxed touch "${HOME}/Library/Caches/uv/test-write"
+rm -f "${HOME}/Library/Caches/uv/test-write"
 
 t "uv: write ~/.local/share/uv"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.local/share/uv/test-write"
 rm -f "${HOME}/.local/share/uv/test-write"
 
 # ── Usability ──
-__uv_bin="${HOME}/.local/bin/uv"
+__uv="${HOME}/.local/bin/uv"
+__uvx="${HOME}/.local/bin/uvx"
 
 t "uv: uv --version"
-expect_success "runs" tc_sandboxed "$__uv_bin" --version
+expect_success "runs" tc_sandboxed "$__uv" --version
 
+# venv + pip install
 t "uv: uv venv"
-expect_success "uv venv" tc_sandboxed "$__uv_bin" venv "${PROJECT_DIR}/uv-test-venv"
+expect_success "venv" tc_sandboxed "$__uv" venv "${PROJECT_DIR}/uv-venv"
 
-t "uv: uv pip install (small package)"
-expect_success "pip install" tc_sandboxed "$__uv_bin" pip install --python "${PROJECT_DIR}/uv-test-venv/bin/python" six
+t "uv: uv pip install"
+expect_success "pip install" tc_sandboxed "$__uv" pip install --python "${PROJECT_DIR}/uv-venv/bin/python" six
 
 t "uv: import installed package"
-expect_success "import" tc_sandboxed "${PROJECT_DIR}/uv-test-venv/bin/python" -c "import six; print(six.__version__)"
+expect_success "import" tc_sandboxed "${PROJECT_DIR}/uv-venv/bin/python" -c "import six; print(six.__version__)"
 
-rm -rf "${PROJECT_DIR}/uv-test-venv"
+# editable install (pip install -e .)
+t "uv: editable install"
+mkdir -p "${PROJECT_DIR}/editable-pkg/src/mypkg"
+printf '[project]\nname = "mypkg"\nversion = "0.1.0"\n\n[build-system]\nrequires = ["setuptools"]\nbuild-backend = "setuptools.backends._legacy:_Backend"\n' > "${PROJECT_DIR}/editable-pkg/pyproject.toml"
+printf 'def hello():\n    return "sandbox ok"\n' > "${PROJECT_DIR}/editable-pkg/src/mypkg/__init__.py"
+expect_success "pip install -e" tc_sandboxed "$__uv" pip install --python "${PROJECT_DIR}/uv-venv/bin/python" -e "${PROJECT_DIR}/editable-pkg"
 
+t "uv: import editable package"
+expect_success "import editable" tc_sandboxed "${PROJECT_DIR}/uv-venv/bin/python" -c "from mypkg import hello; print(hello())"
+
+rm -rf "${PROJECT_DIR}/uv-venv" "${PROJECT_DIR}/editable-pkg"
+
+# uvx (run without installing)
+t "uv: uvx runs package"
+expect_success "uvx" tc_sandboxed "$__uvx" ruff version
+
+# uv tool install (persistent tool)
+t "uv: uv tool install"
+expect_success "tool install" tc_sandboxed "$__uv" tool install ruff
+
+t "uv: tool binary in ~/.local/bin"
+expect_success "tool binary" tc_sandboxed test -f "${HOME}/.local/bin/ruff"
+
+t "uv: installed tool runs"
+expect_success "tool runs" tc_sandboxed "${HOME}/.local/bin/ruff" version
+
+# clean up tool
+tc_sandboxed "$__uv" tool uninstall ruff 2>/dev/null || true
+
+# uv init
 t "uv: uv init"
-expect_success "uv init" tc_sandboxed "$__uv_bin" init "${PROJECT_DIR}/uv-test-proj"
-expect_success "pyproject.toml" tc_sandboxed test -f "${PROJECT_DIR}/uv-test-proj/pyproject.toml"
-
-rm -rf "${PROJECT_DIR}/uv-test-proj"
+expect_success "init" tc_sandboxed "$__uv" init "${PROJECT_DIR}/uv-proj"
+expect_success "pyproject.toml" tc_sandboxed test -f "${PROJECT_DIR}/uv-proj/pyproject.toml"
+rm -rf "${PROJECT_DIR}/uv-proj"
 
 # ── Isolation ──
 t "uv: ~/.ssh blocked"

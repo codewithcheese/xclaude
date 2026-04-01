@@ -91,9 +91,10 @@ allow-exec ~/.local/bin/custom      # read + exec access
 
 | Name | What it allows |
 |---|---|
-| `node` | NVM (`~/.nvm`), npm cache (`~/.npm`) |
-| `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config |
-| `uv` | uv binary, uv cache (`~/.cache/uv`), uv data (`~/.local/share/uv`) |
+| `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`) |
+| `pnpm` | pnpm binary, global store (`~/.pnpm-store`), dlx execution |
+| `bun` | Bun runtime, bunx, install cache (`~/.bun`) |
+| `uv` | uv/uvx binary, `uv tool install`, cache (`~/Library/Caches/uv`) |
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache |

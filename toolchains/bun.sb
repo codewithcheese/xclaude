@@ -1,0 +1,17 @@
+;; Bun runtime and package manager
+;;
+;; Bun installs to ~/.bun/bin/bun via its install script.
+;; Package cache lives at ~/.bun/install/cache/.
+;; bunx (like npx) downloads and executes from the cache.
+
+;; Exec — bun binary and cached packages (bunx runs from cache)
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.bun")))
+
+;; Read — binary, cache, config
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.bun")))
+
+;; Write — install cache (bunx downloads here, bun install writes here)
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.bun")))

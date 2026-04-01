@@ -32,11 +32,19 @@ Create two files:
 
 SBPL fragment granting read, write, and exec access for the tool. Use `(param "HOME")` for home-relative paths.
 
+**Every rule MUST have a comment explaining its intent** — why this path is needed and what operation requires it. The `.sb` file should start with a header comment describing what the toolchain provides and how the tool's filesystem layout works.
+
 ```scheme
 ;; Example toolchain
+;;
+;; tool installs to ~/.tool/bin/ and caches data at ~/.tool/cache/.
+;; Config at ~/.tool/config (read-only).
+
+;; Exec — tool binaries
 (allow process-exec
   (subpath (string-append (param "HOME") "/.tool/bin")))
 
+;; Read — binaries, cache, and config
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.tool")))
 
