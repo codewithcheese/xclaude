@@ -1,3 +1,35 @@
+# xclaude
+
+## Sandbox profile (xclaude.sb)
+
+- Every SBPL statement must have a comment explaining why it exists.
+
+## Working principles
+
+- **Research before guessing.** When unsure about sandbox behavior, SBPL semantics, or macOS internals, use agents or GitHub issues to verify. Don't assume.
+- **Test inside the sandbox.** Don't assume rules work — write explicit test commands using `sandbox-exec` with the assembled profile.
+- **Security implications first.** Think through what a permission change exposes before suggesting it. Scope as narrowly as possible.
+- **Prefer alternatives to widening permissions.** Local installs over global, project-local paths over home paths. Only widen if no alternative exists.
+- **Keep xclaude generic.** No tool-specific code in xclaude itself. Tool-specific paths belong in toolchains or project `.xclaude` files.
+- **Infrastructure vs project config.** System-level paths (TMPDIR, CACHE_DIR, VOLATILE_DIR) and always-on tools (cmux) belong in base.sb or `~/.config/xclaude/config`, not project `.xclaude`.
+- **Separate toolchains for separate trade-offs.** e.g. `playwright` (shared cache) vs `playwright-chromium` (macOS integration paths). Don't bundle unrelated concerns.
+
+## Plugin
+
+Plugin source lives in `plugin/`. Manifest at `.claude-plugin/plugin.json` (repo root).
+
+```
+.claude-plugin/plugin.json    # manifest, references plugin/
+plugin/
+  hooks/hooks.json             # hook config (auto-discovered)
+  hooks/sandbox-denial-hook.sh # PostToolUseFailure hook
+  skills/debug-sandbox/        # sandbox debugging skill
+```
+
+- The **hook** provides enough context for the model to decide whether to invoke the skill. Detailed instructions belong in the skill, not the hook.
+- The **skill** must check `~/.config/xclaude/config` (user-level) before suggesting project rules. Don't duplicate what's already active.
+- Update the skill's toolchain table and "base profile already covers" section when adding toolchains or base.sb parameters.
+
 # Development Guide
 
 ## Architecture
