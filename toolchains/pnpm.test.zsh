@@ -48,7 +48,7 @@ rm -rf "${PROJECT_DIR}/pnpm-test"
 
 # pnpm dlx (downloads + executes from store)
 t "pnpm: pnpm dlx executes package"
-expect_success "dlx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__pnpm' dlx is-odd 3 2>&1"
+expect_success "dlx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__pnpm' dlx semver 1.2.3 2>&1"
 
 # ── Isolation ──
 t "pnpm: ~/.ssh blocked"

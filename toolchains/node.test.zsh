@@ -52,8 +52,9 @@ expect_success "require" tc_sandboxed "$__node_bin" -e "require('${PROJECT_DIR}/
 rm -rf "${PROJECT_DIR}/node-test"
 
 # npx (downloads + executes from ~/.npm/_npx/)
+# Use a package with an actual CLI binary (is-odd is a library, not a CLI)
 t "node: npx executes package"
-expect_success "npx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '${__npx_bin}' --yes is-odd 3 2>&1"
+expect_success "npx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '${__npx_bin}' --yes semver 1.2.3 2>&1"
 
 # node eval
 t "node: node eval"

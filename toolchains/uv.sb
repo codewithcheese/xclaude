@@ -6,12 +6,16 @@
 ;; Cache is at ~/Library/Caches/uv on macOS (not ~/.cache/uv).
 ;; Tool environments live at ~/.local/share/uv/tools/.
 
-;; Exec — uv/uvx binary and tool environments
+;; Exec — uv/uvx binary, tool environments, and cached interpreters
 ;; ~/.local/bin has uv, uvx, and binaries from `uv tool install`
 ;; ~/.local/share/uv has tool venvs that uvx/tool need to execute
+;; ~/Library/Caches/uv has downloaded Python interpreters and tool
+;; venvs that uvx needs to exec (e.g. ruff downloaded by uvx)
 (allow process-exec
   (subpath (string-append (param "HOME") "/.local/bin"))
-  (subpath (string-append (param "HOME") "/.local/share/uv")))
+  (subpath (string-append (param "HOME") "/.local/share/uv"))
+  (subpath (string-append (param "HOME") "/Library/Caches/uv"))
+  (subpath (string-append (param "HOME") "/.cache/uv")))
 
 ;; Read — tool data and cache
 (allow file-read-data

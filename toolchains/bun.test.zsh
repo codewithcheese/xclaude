@@ -45,7 +45,7 @@ rm -rf "${PROJECT_DIR}/bun-test"
 
 # bunx needs CWD inside PROJECT_DIR to avoid "error loading current directory"
 t "bun: bunx executes package"
-expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__bun' x is-odd 3 2>&1"
+expect_success "bunx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__bun' x semver 1.2.3 2>&1"
 
 # ── Isolation ──
 t "bun: ~/.ssh blocked"

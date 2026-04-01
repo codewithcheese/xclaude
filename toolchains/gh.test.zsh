@@ -2,7 +2,9 @@
 tc_setup gh
 
 tc_fixture_dir "${HOME}/.config/gh"
-tc_fixture_file "${HOME}/.config/gh/hosts.yml"
+tc_fixture_file "${HOME}/.config/gh/hosts.yml" "github.com:
+    oauth_token: test-fixture-token
+    git_protocol: https"
 
 # ── Access ──
 t "gh: read ~/.config/gh"

@@ -48,12 +48,13 @@ expect_success() {
       echo "  stderr:" >&2
       sed 's/^/    /' < "$__stderr_file" | tail -20 >&2
     fi
-    # Show recent sandbox denials from system log
+    # Show recent sandbox denials from system log (filter to Sandbox kernel messages only)
     echo "  sandbox denials:" >&2
     /usr/bin/log show --last 5s \
-      --predicate 'eventMessage CONTAINS "deny"' \
+      --predicate 'eventMessage CONTAINS "Sandbox" AND eventMessage CONTAINS "deny"' \
       --style compact 2>/dev/null \
-      | grep -i "deny" \
+      | grep "Sandbox:" \
+      | grep -v "mobileassetd\|suggestd\|biomesyncd\|runningboardd\|dasd\|online-auth" \
       | tail -10 \
       | sed 's/^/    /' >&2
   fi

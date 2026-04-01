@@ -16,7 +16,7 @@
   (subpath (string-append (param "HOME") "/.cargo"))
   (subpath (string-append (param "HOME") "/.rustup")))
 
-;; Write — binaries (cargo install), dependency cache, package lock
+;; Write — binaries (cargo install), dependency cache, metadata
 (allow file-write*
   ;; `cargo install` writes compiled binaries here
   (subpath (string-append (param "HOME") "/.cargo/bin"))
@@ -25,4 +25,7 @@
   ;; git-based dependencies
   (subpath (string-append (param "HOME") "/.cargo/git"))
   ;; package cache lock file
-  (subpath (string-append (param "HOME") "/.cargo/.package-cache")))
+  (literal (string-append (param "HOME") "/.cargo/.package-cache"))
+  ;; cargo install metadata — tracks which crates are installed
+  (literal (string-append (param "HOME") "/.cargo/.crates.toml"))
+  (literal (string-append (param "HOME") "/.cargo/.crates2.json")))
