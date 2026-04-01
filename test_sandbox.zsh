@@ -3,7 +3,11 @@
 # Runs on macOS only — tests that sandbox-exec with the assembled
 # profile actually blocks/allows the right filesystem operations.
 #
-# Usage: zsh test_sandbox.zsh [--with-config .xclaude-test-fixture]
+# Usage:
+#   zsh test_sandbox.zsh                          # base + all toolchains
+#   zsh test_sandbox.zsh --toolchain node         # base + one toolchain
+#   zsh test_sandbox.zsh --toolchain node,uv      # base + specific toolchains
+#   zsh test_sandbox.zsh --with-config path/.xclaude  # base + custom config
 #
 # Requires: macOS with sandbox-exec, shasum
 
@@ -113,15 +117,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ── Assemble profile ─────────────────────────────────────────
-# Parse optional --with-config to test project configs
-PROJECT_CONFIG=""
+# ── Parse arguments ───────────────────────────────────────────
+__toolchain_filter=""
+__run_toolchains=true
 if [[ "${1:-}" = "--with-config" && -n "${2:-}" ]]; then
   cp "$2" "${PROJECT_DIR}/.xclaude"
-  # Pre-trust the config so assembly doesn't prompt
-  __xclaude_trust_dir="$(mktemp -d)"
-  __xclaude_trusted_file="${__xclaude_trust_dir}/trusted"
   __xclaude_trust "${PROJECT_DIR}/.xclaude"
+elif [[ "${1:-}" = "--toolchain" ]]; then
+  if [[ -n "${2:-}" ]]; then
+    __toolchain_filter="${2}"
+  else
+    __run_toolchains=false
+  fi
 fi
 
 PROFILE="$(__xclaude_assemble "$PROJECT_DIR")"
@@ -292,13 +299,21 @@ rm -f "${PROJECT_DIR}/.xclaude"
 # Each toolchain has a .test.zsh file alongside its .sb fragment.
 # Source the shared helpers, then run each test file.
 
-source "${SCRIPT_DIR}/toolchains/test_helpers.zsh"
+if $__run_toolchains; then
+  source "${SCRIPT_DIR}/toolchains/test_helpers.zsh"
 
-for tc_test_file in "${SCRIPT_DIR}"/toolchains/*.test.zsh; do
-  tc_name="$(basename "$tc_test_file" .test.zsh)"
-  echo "=== Toolchain: ${tc_name} ==="
-  source "$tc_test_file"
-done
+  for tc_test_file in "${SCRIPT_DIR}"/toolchains/*.test.zsh; do
+    tc_name="$(basename "$tc_test_file" .test.zsh)"
+    # Filter to specific toolchains if --toolchain <names> was given
+    if [[ -n "$__toolchain_filter" ]]; then
+      if [[ ",$__toolchain_filter," != *",$tc_name,"* ]]; then
+        continue
+      fi
+    fi
+    echo "=== Toolchain: ${tc_name} ==="
+    source "$tc_test_file"
+  done
+fi
 
 # ── Results ───────────────────────────────────────────────────
 echo ""

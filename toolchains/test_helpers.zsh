@@ -44,7 +44,7 @@ tc_sandboxed() {
 tc_fixture_dir() {
   local dir="$1"
   if [[ ! -d "$dir" ]]; then
-    mkdir -p "$dir"
+    /bin/mkdir -p "$dir"
     __tc_fixtures+=("$dir")
   fi
 }
@@ -52,7 +52,7 @@ tc_fixture_dir() {
 tc_fixture_file() {
   local path="$1"
   local content="${2:-xclaude-test-fixture}"
-  local dir="$(dirname "$path")"
+  local dir="${path%/*}"
   tc_fixture_dir "$dir"
   if [[ ! -f "$path" ]]; then
     echo "$content" > "$path"
@@ -61,18 +61,18 @@ tc_fixture_file() {
 }
 
 tc_cleanup() {
-  rm -f "$__tc_profile_path"
+  /bin/rm -f "$__tc_profile_path"
   # Reverse order: files before dirs
   local f
   for f in "${(Oa)__tc_fixtures[@]}"; do
     if [[ -d "$f" ]]; then
-      rmdir "$f" 2>/dev/null || true
+      /bin/rmdir "$f" 2>/dev/null || true
     else
-      rm -f "$f" 2>/dev/null || true
+      /bin/rm -f "$f" 2>/dev/null || true
     fi
   done
   __tc_fixtures=()
-  rm -f "${PROJECT_DIR}/.xclaude"
+  /bin/rm -f "${PROJECT_DIR}/.xclaude"
 }
 
 tc_has_cmd() {
