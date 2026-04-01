@@ -1,0 +1,11 @@
+;; Deno toolchain
+;; Provides: deno runtime, module cache
+
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.deno/bin")))
+
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.deno")))
+
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.deno")))

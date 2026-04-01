@@ -1,4 +1,4 @@
-# claude-strict
+# xclaude
 
 macOS Seatbelt sandbox for Claude Code. Wraps the `claude` binary in `sandbox-exec` with a strict SBPL profile that restricts filesystem access to an explicit allowlist.
 
@@ -8,14 +8,14 @@ Claude Code's built-in sandbox (`sandbox.enabled` in settings) has [known issues
 
 ## What it does
 
-- **Reads**: `file-read-data` allowlist only. System runtime paths, Claude config, project directory, and specific tool configs. Everything else in `$HOME` is blocked.
-- **Writes**: project directory, Claude state files, tmp directories. Nothing else.
+- **Reads**: `file-read-data` allowlist only. System runtime paths, Claude config, project directory, and declared toolchains. Everything else in `$HOME` is blocked.
+- **Writes**: project directory, Claude state files, tmp directories. Nothing else unless declared.
 - **Non-filesystem**: network, IPC, Mach ports are open (the goal is filesystem isolation).
-- **Exec**: system binaries, Homebrew, Claude binary, NVM, project scripts.
+- **Exec**: system binaries, Homebrew, Claude binary, project scripts, and declared toolchains.
 
 ### Blocked by default
 
-`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/Desktop`, `~/Downloads`, `~/Documents` (except the project), `~/Library` (except Keychains for auth), `~/.zsh_history`, and anything else not explicitly listed.
+`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/Desktop`, `~/Downloads`, `~/Documents`, `~/Library` (except Keychains for auth), `~/.zsh_history`, and anything else not explicitly listed.
 
 ### Verified escape vectors
 
@@ -36,25 +36,92 @@ cd /path/to/your/project
 xclaude
 ```
 
-The wrapper resolves paths, passes them as SBPL parameters, and launches Claude under `sandbox-exec`. Claude's internal permissions are bypassed (`--dangerously-skip-permissions`) since the OS sandbox enforces the real boundaries.
+The wrapper assembles a sandbox profile from the base policy, any declared toolchains, and project-specific config, then launches Claude under `sandbox-exec`. Claude's internal permissions are bypassed (`--dangerously-skip-permissions`) since the OS sandbox enforces the real boundaries.
 
-## Customization
+## Project configuration
 
-Edit `xclaude.sb` to add paths for your tools. Common additions:
+Create a `.xclaude` file in your project root to declare toolchains and extra paths.
 
-```scheme
-;; Example: allow reading a language runtime
-(allow file-read-data
-  (subpath (string-append (param "HOME") "/.cargo")))
+### DSL reference
 
-;; Example: allow writing to a build cache
-(allow file-write*
-  (subpath (string-append (param "HOME") "/.cache/turbo")))
+```sh
+# Toolchains — predefined sandbox profiles
+tool node
+tool uv
+
+# Extra paths
+allow-read ~/.config/special       # read-only access
+allow-write ./local/.share          # read + write access
+allow-exec ~/.local/bin/custom      # read + exec access
 ```
 
-### Symlink-aware
+**Directives:**
 
-Seatbelt resolves symlinks before checking rules. If `~/.zshrc` symlinks to `~/Documents/GitHub/.../macos-setup/.zshrc`, you must allow the **target** path, not the symlink.
+| Directive | Effect | Use case |
+|---|---|---|
+| `tool <name>` | Activates a bundled toolchain | Language runtimes, package managers |
+| `allow-read <path>` | Adds `file-read-data` | Config files, shared libraries |
+| `allow-write <path>` | Adds `file-read-data` + `file-write*` | Build caches, data directories |
+| `allow-exec <path>` | Adds `file-read-data` + `process-exec` | Custom binaries, scripts |
+
+**Path expansion:**
+
+| Prefix | Expands to | Example |
+|---|---|---|
+| `~/` | `$HOME` | `~/.cargo` → `/Users/you/.cargo` |
+| `./` | `$PROJECT_DIR` | `./local/.share` → `/path/to/project/local/.share` |
+| `/` | absolute | `/opt/custom` → `/opt/custom` |
+
+**Safety constraints** — the DSL is intentionally limited:
+
+- No `deny` — you can only widen access, never narrow it
+- No raw SBPL — all rules are generated from validated directives
+- No system paths — `/System`, `/usr`, `/bin`, `/Library`, `/opt/homebrew` are already in the base profile
+- No bare `~` — you must specify a subdirectory
+
+### Available toolchains
+
+| Name | What it allows |
+|---|---|
+| `node` | NVM (`~/.nvm`), npm cache (`~/.npm`) |
+| `uv` | uv binary, uv cache (`~/.cache/uv`), uv data (`~/.local/share/uv`) |
+| `python` | pyenv (`~/.pyenv`) |
+| `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
+| `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache |
+| `deno` | Deno runtime and cache (`~/.deno`) |
+| `gh` | GitHub CLI auth tokens (`~/.config/gh`) |
+
+### User-level config
+
+For personal paths that apply to all projects (e.g., shell config symlink targets), create `~/.config/xclaude/config` using the same DSL:
+
+```sh
+# Personal tools available in all projects
+allow-read ~/Documents/GitHub/codewithcheese/macos-setup
+allow-read ~/.config/auto-chat
+allow-write ~/.config/auto-chat
+```
+
+### Load order
+
+```
+base.sb                          # core Claude needs (always)
++ ~/.config/xclaude/config       # user-level (if exists)
++ .xclaude                       # project-level (if exists)
+```
+
+All layers are additive. The base profile provides `(deny default)` and cannot be weakened by config files.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `xclaude.zsh` | Shell wrapper — DSL parser, validator, SBPL generator, assembler |
+| `base.sb` | Core Seatbelt/SBPL profile (hand-written, the only raw SBPL) |
+| `xclaude.sb` | Legacy monolithic profile (kept for reference) |
+| `toolchains/*.sb` | Bundled toolchain SBPL fragments |
+| `test_xclaude.bash` | Test harness for the DSL pipeline |
+| `DEBUGGING.md` | Guide for diagnosing sandbox issues |
 
 ### SBPL parameter reference
 
@@ -65,13 +132,13 @@ Seatbelt resolves symlinks before checking rules. If `~/.zshrc` symlinks to `~/D
 | `TMPDIR` | `xclaude.zsh` (resolved) | `/private/var/folders/.../T` |
 | `CACHE_DIR` | `xclaude.zsh` (derived from TMPDIR) | `/private/var/folders/.../C` |
 
-## Files
+## Testing
 
-| File | Purpose |
-|---|---|
-| `xclaude.zsh` | Shell wrapper function |
-| `xclaude.sb` | Seatbelt/SBPL sandbox profile |
-| `DEBUGGING.md` | Guide for diagnosing sandbox issues |
+```bash
+bash test_xclaude.bash
+```
+
+Tests the full DSL pipeline (parser → validator → generator → assembler) without requiring macOS or `sandbox-exec`. Runs on any system with bash 4+.
 
 ## Compatibility
 

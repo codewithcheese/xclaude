@@ -1,0 +1,5 @@
+;; GitHub CLI toolchain
+;; Provides: gh command, auth tokens
+
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/gh")))

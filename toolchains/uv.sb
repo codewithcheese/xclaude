@@ -1,0 +1,14 @@
+;; Python uv toolchain
+;; Provides: uv package manager, pip cache, virtualenv management
+
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/uv")))
+
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/uv"))
+  (subpath (string-append (param "HOME") "/.cache/uv")))
+
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.local/share/uv"))
+  (subpath (string-append (param "HOME") "/.cache/uv")))

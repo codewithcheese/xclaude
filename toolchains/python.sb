@@ -1,0 +1,12 @@
+;; Python toolchain (pyenv)
+;; Provides: pyenv-managed Python installations
+
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.pyenv")))
+
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.pyenv")))
+
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.pyenv/shims"))
+  (subpath (string-append (param "HOME") "/.pyenv/versions")))

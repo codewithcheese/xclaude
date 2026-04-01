@@ -1,0 +1,15 @@
+;; Rust toolchain (rustup + cargo)
+;; Provides: rustc, cargo, rustup, build cache
+
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.cargo/bin"))
+  (subpath (string-append (param "HOME") "/.rustup")))
+
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.cargo"))
+  (subpath (string-append (param "HOME") "/.rustup")))
+
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.cargo/registry"))
+  (subpath (string-append (param "HOME") "/.cargo/git"))
+  (subpath (string-append (param "HOME") "/.cargo/.package-cache")))

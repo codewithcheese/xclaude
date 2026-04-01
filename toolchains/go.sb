@@ -1,0 +1,16 @@
+;; Go toolchain
+;; Provides: go compiler, module cache, build cache
+
+(allow process-exec
+  (subpath "/usr/local/go")
+  (subpath (string-append (param "HOME") "/go/bin"))
+  (subpath (string-append (param "HOME") "/.local/go")))
+
+(allow file-read-data
+  (subpath "/usr/local/go")
+  (subpath (string-append (param "HOME") "/go"))
+  (subpath (string-append (param "HOME") "/.cache/go-build")))
+
+(allow file-write*
+  (subpath (string-append (param "HOME") "/go/pkg"))
+  (subpath (string-append (param "HOME") "/.cache/go-build")))
