@@ -103,6 +103,11 @@
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.claude")))
 
+;; xclaude user config — read-only so the debug-sandbox skill
+;; can see which toolchains and rules are already active
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/xclaude")))
+
 ;; Claude Code checks for this file at home root on startup
 (allow file-read-data
   (path (string-append (param "HOME") "/.claude.json")))
