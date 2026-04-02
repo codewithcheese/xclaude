@@ -62,6 +62,9 @@ main() {
       claude_args=(--continue)
     fi
 
+    # XCLAUDE_ACTIVE: public, stable env var for sandbox detection (documented in README)
+    # XCLAUDE_DENIAL_LOG: internal, read by sandbox-denial-hook.sh
+    # XCLAUDE_RELOAD_SENTINEL: internal, signals profile reload
     XCLAUDE_ACTIVE=1 \
     XCLAUDE_DENIAL_LOG="$denial_log" \
     XCLAUDE_RELOAD_SENTINEL="$reload_sentinel" \
