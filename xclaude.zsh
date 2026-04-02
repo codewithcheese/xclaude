@@ -264,46 +264,73 @@ xclaude() {
     return 1
   fi
 
-  # Assemble the sandbox profile
-  local profile
-  profile="$(__xclaude_assemble "$project_dir")" || return 1
-
-  # Write assembled profile to temp file
-  local profile_path="${tmpdir}/xclaude-$$.sb"
-  echo "$profile" > "$profile_path"
-
   if ! command -v sandbox-exec &>/dev/null; then
     echo "xclaude: sandbox-exec not found, running without sandbox" >&2
     claude "$@"
     return
   fi
 
-  # Stream sandbox denials to a temp file outside the sandbox.
-  # The hook script (inside the sandbox) reads this file since
-  # /usr/bin/log refuses to run inside a sandbox.
-  local denial_log="${tmpdir}/xclaude-$$-denials.log"
-  setopt local_options no_monitor
-  /usr/bin/log stream \
-    --predicate 'eventMessage CONTAINS "Sandbox" AND eventMessage CONTAINS "deny"' \
-    --style compact > "$denial_log" 2>/dev/null &
-  local log_pid=$!
-
   local xclaude_dir_resolved="$(readlink -f "${__xclaude_dir}")"
+  local reload_sentinel="${tmpdir}/xclaude-$$-reload"
+  local rc=0
+  local first_run=1
 
-  XCLAUDE_ACTIVE=1 XCLAUDE_DENIAL_LOG="$denial_log" sandbox-exec \
-    -D "PROJECT_DIR=${project_dir}" \
-    -D "TMPDIR=${tmpdir}" \
-    -D "CACHE_DIR=${cache_dir}" \
-    -D "VOLATILE_DIR=${volatile_dir}" \
-    -D "HOME=${home_dir}" \
-    -D "XCLAUDE_DIR=${xclaude_dir_resolved}" \
-    -f "$profile_path" \
-    -- claude --dangerously-skip-permissions --plugin-dir "${__xclaude_dir}" "$@"
-  local rc=$?
+  while true; do
+    # Re-assemble the sandbox profile each iteration so config changes take effect
+    local profile
+    profile="$(__xclaude_assemble "$project_dir")" || return 1
 
-  # Cleanup
-  kill "$log_pid" 2>/dev/null || true
-  wait "$log_pid" 2>/dev/null || true
-  rm -f "$profile_path" "$denial_log"
+    local profile_path="${tmpdir}/xclaude-$$.sb"
+    echo "$profile" > "$profile_path"
+
+    # Stream sandbox denials to a temp file outside the sandbox.
+    # The hook script (inside the sandbox) reads this file since
+    # /usr/bin/log refuses to run inside a sandbox.
+    local denial_log="${tmpdir}/xclaude-$$-denials.log"
+    setopt local_options no_monitor
+    /usr/bin/log stream \
+      --predicate 'eventMessage CONTAINS "Sandbox" AND eventMessage CONTAINS "deny"' \
+      --style compact > "$denial_log" 2>/dev/null &
+    local log_pid=$!
+
+    # First run uses original args; subsequent runs resume the session
+    local -a claude_args
+    if (( first_run )); then
+      claude_args=("$@")
+      first_run=0
+    else
+      echo "xclaude: reloading sandbox profile..." >&2
+      claude_args=(--continue)
+    fi
+
+    XCLAUDE_ACTIVE=1 \
+    XCLAUDE_DENIAL_LOG="$denial_log" \
+    XCLAUDE_RELOAD_SENTINEL="$reload_sentinel" \
+    sandbox-exec \
+      -D "PROJECT_DIR=${project_dir}" \
+      -D "TMPDIR=${tmpdir}" \
+      -D "CACHE_DIR=${cache_dir}" \
+      -D "VOLATILE_DIR=${volatile_dir}" \
+      -D "HOME=${home_dir}" \
+      -D "XCLAUDE_DIR=${xclaude_dir_resolved}" \
+      -f "$profile_path" \
+      -- claude --dangerously-skip-permissions --plugin-dir "${__xclaude_dir}" "${claude_args[@]}"
+    rc=$?
+
+    # Cleanup per-iteration temp files
+    kill "$log_pid" 2>/dev/null || true
+    wait "$log_pid" 2>/dev/null || true
+    rm -f "$profile_path" "$denial_log"
+
+    # If the reload sentinel exists, loop to re-assemble and restart
+    if [[ -f "$reload_sentinel" ]]; then
+      rm -f "$reload_sentinel"
+      continue
+    fi
+
+    # Normal exit — break out of the loop
+    break
+  done
+
   return $rc
 }
