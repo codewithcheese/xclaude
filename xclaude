@@ -368,4 +368,8 @@ main() {
   return $rc
 }
 
-main "$@"
+# Only run main when executed directly, not when sourced (e.g. by tests).
+# When sourced, ZSH_EVAL_CONTEXT contains "file" twice (sourcer + sourcee).
+if [[ "${ZSH_EVAL_CONTEXT}" == toplevel:file ]]; then
+  main "$@"
+fi
