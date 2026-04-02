@@ -135,7 +135,8 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 
 | File | Purpose |
 |---|---|
-| `xclaude` | Shell wrapper — DSL parser, validator, SBPL generator, assembler, trust gate |
+| `xclaude` | Executable entry point — sources library, runs sandboxed Claude |
+| `xclaude.lib.zsh` | Library: DSL parser, validator, SBPL generator, assembler, trust gate |
 | `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/*.test.zsh` | Sandbox tests for each toolchain |

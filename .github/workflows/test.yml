@@ -5,6 +5,7 @@ on:
     paths:
       - 'base.sb'
       - 'xclaude'
+      - 'xclaude.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'base.sb'
       - 'xclaude'
+      - 'xclaude.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'

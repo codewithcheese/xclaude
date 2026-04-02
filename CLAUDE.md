@@ -35,7 +35,8 @@ plugin/
 ## Architecture
 
 ```
-xclaude              # Shell wrapper: DSL parser → validator → SBPL generator → assembler
+xclaude              # Executable entry point — sources lib, runs main
+xclaude.lib.zsh          # Library: DSL parser, validator, SBPL generator, assembler, trust gate
 base.sb                  # Core SBPL profile (deny default + Claude Code needs)
 toolchains/
   <name>.sb              # SBPL fragment for a toolchain
@@ -222,7 +223,7 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 ### Test structure
 
-- `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude` since they use zsh syntax. If you change the DSL logic in `xclaude`, update the corresponding functions in `test_xclaude.bash` too.
+- `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude.lib.zsh` since they use zsh syntax. If you change the DSL logic in `xclaude.lib.zsh`, update the corresponding functions in `test_xclaude.bash` too.
 - `test_sandbox.zsh` — tests real `sandbox-exec` enforcement. Runs base profile tests (reads, writes, exec, escape vectors), then auto-discovers and runs `toolchains/*.test.zsh`.
 - `toolchains/*.test.zsh` — each file sources `test_helpers.zsh` and tests one toolchain. Creates fixture dirs, verifies access, checks tool usability if installed.
 
@@ -242,7 +243,7 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 ## DSL safety rules
 
-The validator in `xclaude` enforces:
+The validator in `xclaude.lib.zsh` enforces:
 
 - Only four verbs: `tool`, `allow-read`, `allow-write`, `allow-exec`
 - Paths must start with `~/`, `./`, or `/`
@@ -251,4 +252,4 @@ The validator in `xclaude` enforces:
 - Paths targeting `.xclaude` as basename rejected (config is protected)
 - Tool names must match a file in `toolchains/`
 
-If you add a new validation rule, add it to both `xclaude` and the duplicate in `test_xclaude.bash`.
+If you add a new validation rule, add it to both `xclaude.lib.zsh` and the duplicate in `test_xclaude.bash`.
