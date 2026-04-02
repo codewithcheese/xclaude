@@ -89,6 +89,7 @@ HOME_DIR="${HOME}"
 # Bypass trust gate — tests manage their own configs
 __xclaude_trust_dir="$(mktemp -d)"
 __xclaude_trusted_file="${__xclaude_trust_dir}/trusted"
+__xclaude_trusted_copies="${__xclaude_trust_dir}/trusted.d"
 
 # Create test fixtures in the project dir
 echo "hello" > "${PROJECT_DIR}/testfile.txt"

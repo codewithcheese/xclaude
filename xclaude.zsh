@@ -158,9 +158,16 @@ __xclaude_path_to_sbpl() {
 # Returns 0 if trusted, 1 if denied.
 __xclaude_trust_dir="${HOME}/.config/xclaude"
 __xclaude_trusted_file="${__xclaude_trust_dir}/trusted"
+# Directory storing copies of previously approved configs for diffing
+__xclaude_trusted_copies="${__xclaude_trust_dir}/trusted.d"
 
 __xclaude_file_hash() {
   shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
+}
+
+# Returns a stable filename for storing a trusted copy, derived from the filepath
+__xclaude_path_key() {
+  echo -n "$1" | shasum -a 256 | cut -d' ' -f1
 }
 
 __xclaude_is_trusted() {
@@ -170,9 +177,16 @@ __xclaude_is_trusted() {
   grep -q "^${hash} " "$__xclaude_trusted_file" 2>/dev/null
 }
 
+# Returns 0 if there is a previously trusted version of this file (even if hash changed)
+__xclaude_was_previously_trusted() {
+  local file="$1"
+  [[ ! -f "$__xclaude_trusted_file" ]] && return 1
+  grep -q "# ${file}$" "$__xclaude_trusted_file" 2>/dev/null
+}
+
 __xclaude_trust() {
   local file="$1"
-  mkdir -p "$__xclaude_trust_dir"
+  mkdir -p "$__xclaude_trust_dir" "$__xclaude_trusted_copies"
   local hash="$(__xclaude_file_hash "$file")"
   # Remove old entries for this file path, then add current hash
   if [[ -f "$__xclaude_trusted_file" ]]; then
@@ -180,6 +194,8 @@ __xclaude_trust() {
     mv "${__xclaude_trusted_file}.tmp" "$__xclaude_trusted_file"
   fi
   echo "${hash} # ${file}" >> "$__xclaude_trusted_file"
+  # Store a copy so we can diff against it when the config changes
+  cp "$file" "${__xclaude_trusted_copies}/$(__xclaude_path_key "$file")"
 }
 
 __xclaude_check_trust() {
@@ -187,11 +203,24 @@ __xclaude_check_trust() {
   [[ ! -f "$file" ]] && return 0
   __xclaude_is_trusted "$file" && return 0
 
-  # Untrusted or changed — show contents and prompt
-  echo "xclaude: untrusted config: ${file}" >&2
-  echo "─────────────────────────────────────" >&2
-  cat "$file" >&2
-  echo "─────────────────────────────────────" >&2
+  local trusted_copy="${__xclaude_trusted_copies}/$(__xclaude_path_key "$file")"
+
+  if __xclaude_was_previously_trusted "$file" && [[ -f "$trusted_copy" ]]; then
+    # Config changed — show diff
+    echo "xclaude: config changed: ${file}" >&2
+    echo "─────────────────────────────────────" >&2
+    # unified diff: old (trusted) vs new (current), coloured if tput available
+    diff -u "$trusted_copy" "$file" \
+      --label "trusted" --label "current" >&2 || true
+    echo "─────────────────────────────────────" >&2
+  else
+    # New config — show full contents
+    echo "xclaude: new config: ${file}" >&2
+    echo "─────────────────────────────────────" >&2
+    cat "$file" >&2
+    echo "─────────────────────────────────────" >&2
+  fi
+
   echo -n "xclaude: allow this config? [y/N] " >&2
   local reply
   read -r reply
