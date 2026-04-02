@@ -36,6 +36,7 @@ plugin/
 
 ```
 xclaude              # Executable entry point — sources lib, runs main
+xclaude-broker.zsh       # Permission dialog broker — runs outside sandbox, mediates requests via FIFOs
 xclaude.lib.zsh          # Library: DSL parser, validator, SBPL generator, assembler, trust gate
 base.sb                  # Core SBPL profile (deny default + Claude Code needs)
 toolchains/

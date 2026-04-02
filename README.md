@@ -29,6 +29,17 @@ Even though the project directory is writable, these files are protected by deny
 
 When a project has a `.xclaude` config, xclaude computes its sha256 hash and checks `~/.config/xclaude/trusted`. If the config is new or changed, xclaude shows its contents and prompts for approval before applying it. This prevents a malicious commit from silently widening sandbox access.
 
+### Permission dialog
+
+xclaude runs a permission broker outside the sandbox that allows Claude to request permission changes interactively. When Claude encounters a sandbox denial, it can propose a rule change or request to run a one-off command outside the sandbox. The broker validates the request, shows a native macOS dialog for user approval, and applies the change if approved.
+
+Three actions are supported:
+- **add** — append a new rule to `.xclaude` (takes effect on next restart)
+- **remove** — delete an existing rule from `.xclaude` (takes effect on next restart)
+- **exec** — run a single command outside the sandbox (one-time, no policy change)
+
+The dialog shows the actual rule and what it grants — not Claude's description. Claude's stated reason is shown separately as supplementary context. The trust gate still applies on next restart for rule changes.
+
 ### Verified escape vectors
 
 Symlink traversal, hardlinks, /tmp script execution, child process inheritance (python, node, bash), fd redirects, and curl exfiltration of blocked files — all blocked by Seatbelt's kernel-level enforcement.
@@ -135,6 +146,7 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 | File | Purpose |
 |---|---|
 | `xclaude` | Executable entry point — sources library, runs sandboxed Claude |
+| `xclaude-broker.zsh` | Permission dialog broker — validates requests, shows native macOS dialogs |
 | `xclaude.lib.zsh` | Library: DSL parser, validator, SBPL generator, assembler, trust gate |
 | `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
