@@ -1,22 +1,52 @@
-;; Node.js toolchain (NVM + npm + npx)
+;; Node.js toolchain (NVM + npm + npx + corepack + pnpm)
 ;;
 ;; NVM manages multiple node versions at ~/.nvm/versions/.
 ;; npm stores its package cache at ~/.npm/.
 ;; npx downloads and executes one-off packages from ~/.npm/_npx/.
+;; Corepack (bundled with Node) manages package manager versions and
+;; stores state at ~/.cache/node/corepack/.
+;; pnpm uses a content-addressable store at ~/.pnpm-store/ shared
+;; across all projects. The binary installs to ~/.local/share/pnpm/
+;; via the standalone installer. Config at ~/.config/pnpm/rc or
+;; ~/Library/Preferences/pnpm/rc.
 
-;; Exec — NVM-managed binaries (node, npm, npx) and npx cache.
+;; Exec — NVM-managed binaries (node, npm, npx), npx cache,
+;; pnpm binary, and pnpm store (dlx executes packages from store).
 ;; npx needs exec from ~/.npm because it downloads packages to
 ;; ~/.npm/_npx/ and runs them directly from there.
 (allow process-exec
   (subpath (string-append (param "HOME") "/.nvm"))
-  (subpath (string-append (param "HOME") "/.npm")))
+  (subpath (string-append (param "HOME") "/.npm"))
+  (subpath (string-append (param "HOME") "/.local/share/pnpm"))
+  (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; pnpm dlx downloads and executes packages from the cache
+  (subpath (string-append (param "HOME") "/Library/Caches/pnpm")))
 
-;; Read — node versions, npm config/cache
+;; Read — node versions, npm config/cache, corepack state,
+;; pnpm binary, global store, state, cache, and config locations
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.nvm"))
-  (subpath (string-append (param "HOME") "/.npm")))
+  (subpath (string-append (param "HOME") "/.npm"))
+  (subpath (string-append (param "HOME") "/.cache/node"))
+  (subpath (string-append (param "HOME") "/.local/share/pnpm"))
+  (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; pnpm state (tracks store integrity, last update check)
+  (subpath (string-append (param "HOME") "/.local/state/pnpm"))
+  ;; pnpm metadata cache and dlx package downloads
+  (subpath (string-append (param "HOME") "/Library/Caches/pnpm"))
+  ;; macOS pnpm config location
+  (subpath (string-append (param "HOME") "/Library/Preferences/pnpm"))
+  ;; XDG config location
+  (subpath (string-append (param "HOME") "/.config/pnpm")))
 
-;; Write — npm cache only. NVM directory is read-only to prevent
-;; modification of the node installation itself.
+;; Write — npm cache, corepack state, pnpm store, state, and cache.
+;; NVM directory is read-only to prevent modification of the
+;; node installation itself.
 (allow file-write*
-  (subpath (string-append (param "HOME") "/.npm")))
+  (subpath (string-append (param "HOME") "/.npm"))
+  (subpath (string-append (param "HOME") "/.cache/node"))
+  (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; pnpm state file (update check timestamps, etc.)
+  (subpath (string-append (param "HOME") "/.local/state/pnpm"))
+  ;; pnpm metadata cache and dlx temp packages
+  (subpath (string-append (param "HOME") "/Library/Caches/pnpm")))
