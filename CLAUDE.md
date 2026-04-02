@@ -35,9 +35,14 @@ plugin/
 ## Architecture
 
 ```
-xclaude              # Executable entry point — sources lib, runs main
-xclaude.lib.zsh          # Library: DSL parser, validator, SBPL generator, assembler, trust gate
-base.sb                  # Core SBPL profile (deny default + Claude Code needs)
+xclaude                  # Claude executable entry point
+xcodex                   # Codex executable entry point
+xsandbox.lib.zsh         # Shared library: DSL parser, validator, generator, assembler, trust gate
+xclaude.lib.zsh          # Claude-specific wrapper over shared library
+xcodex.lib.zsh           # Codex-specific wrapper over shared library
+base-common.sb           # Shared SBPL base fragment (deny default + common rules)
+base.sb                  # Claude-specific SBPL fragment
+base-codex.sb            # Codex-specific SBPL fragment
 toolchains/
   <name>.sb              # SBPL fragment for a toolchain
   <name>.test.zsh        # Sandbox tests for that toolchain

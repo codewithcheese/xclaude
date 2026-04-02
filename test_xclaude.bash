@@ -142,12 +142,13 @@ __xclaude_generate() {
 
 __xclaude_assemble() {
   local project_dir="$1"
+  local base_common="${__xclaude_dir}/base-common.sb"
   local base_profile="${__xclaude_dir}/base.sb"
   local user_config="${HOME}/.config/xclaude/config"
   local project_config="${project_dir}/.xclaude"
   local assembled generated
 
-  assembled="$(cat "$base_profile")"
+  assembled="$(cat "$base_common" "$base_profile")"
 
   if [[ -f "$user_config" ]]; then
     generated="$(__xclaude_parse "$user_config" | __xclaude_validate | __xclaude_generate)" || return 1
@@ -164,6 +165,83 @@ __xclaude_assemble() {
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; Project config: .xclaude'
+      assembled+=$'\n;; ============================================================'
+      assembled+="$generated"
+    fi
+  fi
+
+  echo "$assembled"
+}
+
+__xcodex_validate() {
+  local line verb arg toolchains_dir="${__xclaude_dir}/toolchains"
+  while IFS= read -r line; do
+    verb="${line%% *}"
+    arg="${line#* }"
+
+    case "$verb" in
+      tool)
+        if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
+          echo "xcodex: unknown toolchain '${arg}'" >&2
+          echo "xcodex: available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')" >&2
+          return 1
+        fi
+        echo "$line"
+        ;;
+      allow-read|allow-write|allow-exec)
+        local prefix2="${arg:0:2}"
+        if [[ "$arg" = "~" || "$arg" = "~/" ]]; then
+          echo "xcodex: bare '~' or '~/' is too broad — use ~/specific/path" >&2
+          return 1
+        elif [[ "$arg" = "./" || "$arg" = "." ]]; then
+          echo "xcodex: bare './' is too broad — use ./specific/path" >&2
+          return 1
+        elif [[ "$prefix2" != "~/" && "$prefix2" != "./" && "${arg:0:1}" != "/" ]]; then
+          echo "xcodex: invalid path '${arg}' — must start with ~/, ./, or /" >&2
+          return 1
+        fi
+        case "$arg" in
+          /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+            echo "xcodex: system path '${arg}' is already allowed by base profile" >&2
+            return 1
+            ;;
+        esac
+        local basename="${arg##*/}"
+        if [[ "$basename" = ".xcodex" ]]; then
+          echo "xcodex: cannot target '.xcodex' — sandbox config is protected" >&2
+          return 1
+        fi
+        echo "$line"
+        ;;
+    esac
+  done
+}
+
+__xcodex_assemble() {
+  local project_dir="$1"
+  local base_common="${__xclaude_dir}/base-common.sb"
+  local base_profile="${__xclaude_dir}/base-codex.sb"
+  local user_config="${HOME}/.config/xcodex/config"
+  local project_config="${project_dir}/.xcodex"
+  local assembled generated
+
+  assembled="$(cat "$base_common" "$base_profile")"
+
+  if [[ -f "$user_config" ]]; then
+    generated="$(__xclaude_parse "$user_config" | __xcodex_validate | __xclaude_generate)" || return 1
+    if [[ -n "$generated" ]]; then
+      assembled+=$'\n\n;; ============================================================'
+      assembled+=$'\n;; User config: ~/.config/xcodex/config'
+      assembled+=$'\n;; ============================================================'
+      assembled+="$generated"
+    fi
+  fi
+
+  if [[ -f "$project_config" ]]; then
+    generated="$(__xclaude_parse "$project_config" | __xcodex_validate | __xclaude_generate)" || return 1
+    if [[ -n "$generated" ]]; then
+      assembled+=$'\n\n;; ============================================================'
+      assembled+=$'\n;; Project config: .xcodex'
       assembled+=$'\n;; ============================================================'
       assembled+="$generated"
     fi
@@ -359,15 +437,16 @@ input="allow-read ~/.config/foo"
 out="$(echo "$input" | __xclaude_validate)"
 assert_eq "$input" "$out"
 
-# ── .xclaude write-protect in base.sb ─────────────────────────
+# ── Base profile write protection ─────────────────────────────
 echo "=== Write protection ==="
 
-t "base.sb denies writes to .xclaude using literal"
-out="$(cat "${__xclaude_dir}/base.sb")"
+t "assembled Claude base denies writes to .xclaude using literal"
+out="$(cat "${__xclaude_dir}/base-common.sb" "${__xclaude_dir}/base.sb")"
 assert_contains 'deny file-write' "$out"
 assert_contains '.xclaude' "$out"
 
-t "base.sb denies writes to .env files"
+t "shared base denies writes to .env files"
+out="$(cat "${__xclaude_dir}/base-common.sb")"
 assert_contains '/.env"' "$out"
 assert_contains '/.env.local"' "$out"
 assert_contains '/.env.development"' "$out"
@@ -375,11 +454,11 @@ assert_contains '/.env.staging"' "$out"
 assert_contains '/.env.test"' "$out"
 assert_contains '/.env.production"' "$out"
 
-t "base.sb denies writes to .git/hooks"
+t "shared base denies writes to .git/hooks"
 assert_contains '.git/hooks' "$out"
 
 t "deny rule appears after allow for PROJECT_DIR"
-base="$(cat "${__xclaude_dir}/base.sb")"
+base="$(cat "${__xclaude_dir}/base-common.sb" "${__xclaude_dir}/base.sb")"
 deny_line="$(echo "$base" | grep -n 'deny file-write' | head -1 | cut -d: -f1)"
 allow_line="$(echo "$base" | grep -n 'allow file-write' | head -1 | cut -d: -f1)"
 if [[ -n "$deny_line" && -n "$allow_line" && "$deny_line" -gt "$allow_line" ]]; then
@@ -389,6 +468,15 @@ else
   echo "FAIL: ${__test_name}" >&2
   echo "  deny on line ${deny_line:-?}, allow on line ${allow_line:-?} — deny must come AFTER allow" >&2
 fi
+
+t "base-codex.sb denies writes to .xcodex"
+out="$(cat "${__xclaude_dir}/base-codex.sb")"
+assert_contains 'deny file-write' "$out"
+assert_contains '.xcodex' "$out"
+
+t "base-codex.sb allows Codex state"
+assert_contains '/.codex' "$out"
+assert_contains '/.nvm' "$out"
 
 # ── Path-to-SBPL tests ───────────────────────────────────────
 echo "=== Path-to-SBPL ==="
@@ -489,6 +577,14 @@ echo "allow-read ~/.config/personal-tool" > "${user_config_dir}/config"
 HOME="${TMPDIR_TEST}/xclaude_home" out="$(__xclaude_assemble "$proj_dir")"
 assert_contains 'User config' "$out"
 assert_contains '/.config/personal-tool' "$out"
+rm -rf "$proj_dir"
+
+t "xcodex assembly with project config includes toolchain"
+proj_dir="$(mktemp -d)"
+echo "tool node" > "${proj_dir}/.xcodex"
+out="$(__xcodex_assemble "$proj_dir")"
+assert_contains 'Project config: .xcodex' "$out"
+assert_contains 'toolchain: node' "$out"
 rm -rf "$proj_dir"
 
 # ── SBPL well-formedness ─────────────────────────────────────

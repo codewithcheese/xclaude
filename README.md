@@ -1,6 +1,6 @@
 # xclaude
 
-macOS Seatbelt sandbox for Claude Code. Wraps the `claude` binary in `sandbox-exec` with a strict SBPL profile that restricts filesystem access to an explicit allowlist.
+macOS Seatbelt sandboxes for agent CLIs. The repo started with `xclaude` for Claude Code and now also includes `xcodex` for Codex CLI. Each wrapper runs the underlying agent in `sandbox-exec` with a strict SBPL profile that restricts filesystem access to an explicit allowlist.
 
 ## Why
 
@@ -35,20 +35,32 @@ Symlink traversal, hardlinks, /tmp script execution, child process inheritance (
 
 ## Setup
 
-1. Add xclaude to your PATH:
+1. Add this repo to your PATH:
 
 ```bash
 export PATH="/path/to/xclaude:$PATH"
 ```
 
-2. Use `xclaude` instead of `claude`:
+2. Use the wrapper that matches your agent:
 
 ```bash
 cd /path/to/your/project
 xclaude
+xcodex
 ```
 
-The wrapper assembles a sandbox profile from the base policy, any declared toolchains, and project-specific config, then launches Claude under `sandbox-exec`. Claude's internal permissions are bypassed (`--dangerously-skip-permissions`) since the OS sandbox enforces the real boundaries.
+The wrapper assembles a sandbox profile from the base policy, any declared toolchains, and project-specific config, then launches the underlying agent under `sandbox-exec`. The agent's built-in permissions are bypassed because the OS sandbox enforces the real boundaries.
+
+### xcodex
+
+`xcodex` follows the same DSL and trust model, but uses Codex-specific defaults:
+
+- Project config: `.xcodex`
+- User config: `~/.config/xcodex/config`
+- Trust ledger: `~/.config/xcodex/trusted`
+- Base fragments: `base-common.sb` + `base-codex.sb`
+
+Its base profile grants Codex access to `~/.codex` state and its current CLI install location under `~/.nvm`, instead of Claude-specific paths like `~/.claude` and `~/.local/share/claude`.
 
 ## Project configuration
 
@@ -135,8 +147,13 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 | File | Purpose |
 |---|---|
 | `xclaude` | Executable entry point — sources library, runs sandboxed Claude |
-| `xclaude.lib.zsh` | Library: DSL parser, validator, SBPL generator, assembler, trust gate |
-| `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
+| `xcodex` | Executable entry point — sources library, runs sandboxed Codex CLI |
+| `xsandbox.lib.zsh` | Shared DSL parser, validator, SBPL generator, assembler, trust gate |
+| `xclaude.lib.zsh` | Claude-specific wrapper over the shared library |
+| `xcodex.lib.zsh` | Codex-specific wrapper over the shared library |
+| `base-common.sb` | Shared Seatbelt/SBPL base for all wrappers |
+| `base.sb` | Claude-specific SBPL fragment layered on top of `base-common.sb` |
+| `base-codex.sb` | Codex-specific SBPL fragment layered on top of `base-common.sb` |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/*.test.zsh` | Sandbox tests for each toolchain |
 | `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, etc.) |

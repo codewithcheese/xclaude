@@ -1,0 +1,132 @@
+(version 1)
+(deny default)
+
+;; ============================================================
+;; Non-filesystem permissions
+;; Allowed broadly — the goal of this profile is filesystem
+;; isolation, not network or IPC restriction.
+;; ============================================================
+(allow network*)
+(allow mach*)
+(allow ipc-posix*)
+(allow sysctl*)
+(allow signal)
+(allow iokit*)
+(allow process-info*)
+(allow system*)
+;; Node/Bun-based CLIs can query codesigning state during startup.
+(allow process-codesigning-status*)
+;; CFPreferences is read during runtime/tool startup on macOS.
+(allow user-preference-read)
+;; JS runtimes and WASM need executable memory.
+(allow dynamic-code-generation)
+
+;; ============================================================
+;; Process execution
+;; ============================================================
+(allow process-fork)
+(allow process-exec
+  ;; System binaries
+  (subpath "/bin")
+  (subpath "/usr/bin")
+  ;; Homebrew binaries (git, node, etc.)
+  (subpath "/opt/homebrew")
+  ;; Scripts within the project
+  (subpath (param "PROJECT_DIR")))
+
+;; ============================================================
+;; Read permissions: strict allowlist for file-read-data
+;; ============================================================
+(allow file-read-metadata (subpath "/"))
+(allow file-read-xattr (subpath "/"))
+(allow file-map-executable (subpath "/"))
+
+;; Root directory entry itself — needed during process startup.
+(allow file-read-data (path "/"))
+
+;; System runtime — needed by dyld, shell, and common CLI tools
+(allow file-read-data
+  (subpath "/bin")
+  (subpath "/sbin")
+  (subpath "/usr")
+  (subpath "/System")
+  (subpath "/Library")
+  (subpath "/private/etc")
+  (subpath "/private/var/db")
+  (subpath "/dev")
+  (subpath "/opt/homebrew"))
+
+;; Temp directories — agents and subprocesses use them heavily.
+(allow file-read-data
+  (subpath "/private/tmp")
+  (subpath (param "TMPDIR")))
+
+;; Spotlight/mds cache — needed by macOS security services.
+(allow file-read-data
+  (subpath (param "CACHE_DIR")))
+
+;; Volatile dir — code-signing clones when launching binaries.
+(allow file-read-data
+  (subpath (param "VOLATILE_DIR")))
+(allow file-write*
+  (subpath (param "VOLATILE_DIR")))
+
+;; Git config — needed for git commands inside sessions
+(allow file-read-data
+  (path (string-append (param "HOME") "/.gitconfig")))
+
+;; Shell config — agents inspect shell environment on startup
+(allow file-read-data
+  (path (string-append (param "HOME") "/.zshrc"))
+  (path (string-append (param "HOME") "/.bashrc"))
+  (path (string-append (param "HOME") "/.profile"))
+  (path (string-append (param "HOME") "/.zprofile"))
+  (path (string-append (param "HOME") "/.bash_profile"))
+  (path (string-append (param "HOME") "/.zshenv")))
+
+;; Project directory
+(allow file-read-data
+  (subpath (param "PROJECT_DIR")))
+
+;; ============================================================
+;; Write permissions: strict allowlist
+;; ============================================================
+(allow file-write*
+  ;; Project directory — primary workspace
+  (subpath (param "PROJECT_DIR"))
+  ;; Temp directories
+  (subpath "/private/tmp")
+  (subpath (param "TMPDIR"))
+  ;; Spotlight/mds cache
+  (subpath (param "CACHE_DIR")))
+
+;; ── Shared write denies (after allows — last-match-wins) ─────
+;; Protect security-sensitive files inside writable directories.
+
+;; Environment files — often contain secrets and API keys
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.env"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.local"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.development"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.staging"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.test"))
+  (literal (string-append (param "PROJECT_DIR") "/.env.production")))
+
+;; Git hooks — prevent injection of arbitrary code that runs
+;; on git commit, push, etc.
+(deny file-write*
+  (subpath (string-append (param "PROJECT_DIR") "/.git/hooks")))
+
+;; ============================================================
+;; Device and pseudo-terminal access
+;; Needed for terminal I/O and subprocess management.
+;; ============================================================
+(allow file-read* file-write* file-ioctl
+  (path "/dev/null")
+  (path "/dev/tty")
+  (path "/dev/random")
+  (path "/dev/urandom")
+  (path "/dev/dtracehelper")
+  (path "/dev/ptmx")
+  (regex #"^/dev/pty.*")
+  (regex #"^/dev/ttys.*"))

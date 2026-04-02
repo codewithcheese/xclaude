@@ -18,8 +18,8 @@ main() {
   local cache_dir="${tmpdir%/T*}/C"
   local volatile_dir="${tmpdir%/T*}/X"
 
-  if [[ ! -f "${__xclaude_dir}/base.sb" ]]; then
-    echo "xclaude: base.sb not found at ${__xclaude_dir}/base.sb" >&2
+  if [[ ! -f "${__xclaude_dir}/base-common.sb" || ! -f "${__xclaude_dir}/base.sb" ]]; then
+    echo "xclaude: base profile fragments not found at ${__xclaude_dir}/base-common.sb and ${__xclaude_dir}/base.sb" >&2
     return 1
   fi
 
