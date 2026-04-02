@@ -69,6 +69,18 @@ All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude
 
 Use `(param "NAME")` in SBPL — never hardcode paths.
 
+## Environment variables
+
+xclaude sets these env vars for processes inside the sandbox:
+
+| Variable | Value | Stability |
+|---|---|---|
+| `XCLAUDE_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the sandbox |
+| `XCLAUDE_DENIAL_LOG` | Path to denial log file | Internal — do not rely on |
+| `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
+
+To check if running inside xclaude: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
+
 ## SBPL rules to know
 
 - `(deny default)` is in base.sb. Everything else is `(allow ...)`.

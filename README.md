@@ -145,6 +145,36 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 | `CLAUDE.md` | Development guide |
 | `DEBUGGING.md` | Guide for diagnosing sandbox issues |
 
+### Detecting the sandbox
+
+xclaude sets the `XCLAUDE_ACTIVE=1` environment variable for all processes running inside the sandbox. CLI tools that should only run within the sandbox can check for it:
+
+```bash
+# Shell
+if [[ "${XCLAUDE_ACTIVE:-}" != "1" ]]; then
+  echo "error: must run inside xclaude sandbox" >&2
+  exit 1
+fi
+```
+
+```python
+# Python
+import os, sys
+if os.environ.get("XCLAUDE_ACTIVE") != "1":
+    print("error: must run inside xclaude sandbox", file=sys.stderr)
+    sys.exit(1)
+```
+
+```javascript
+// Node.js
+if (process.env.XCLAUDE_ACTIVE !== "1") {
+  console.error("error: must run inside xclaude sandbox");
+  process.exit(1);
+}
+```
+
+This variable is inherited by all child processes (bash, node, python, etc.) and is the stable, recommended way to detect the xclaude sandbox. Other `XCLAUDE_*` environment variables are internal and should not be relied upon.
+
 ### SBPL parameter reference
 
 | Parameter | Set by | Example |
