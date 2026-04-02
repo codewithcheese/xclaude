@@ -25,4 +25,6 @@ jobs:
           export NVM_DIR="$HOME/.nvm"
           source "$NVM_DIR/nvm.sh"
           nvm install --lts
+      - name: Install pnpm
+        run: curl -fsSL https://get.pnpm.io/install.sh | sh -
       - run: zsh test_sandbox.zsh --toolchain node

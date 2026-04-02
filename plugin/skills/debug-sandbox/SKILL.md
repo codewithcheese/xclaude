@@ -42,8 +42,7 @@ Comments start with `#`. Blank lines are ignored.
 
 | Name | What it grants |
 |------|----------------|
-| `node` | NVM (`~/.nvm` read+exec), npm/npx cache (`~/.npm` read+write+exec) |
-| `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`) |
+| `node` | NVM (`~/.nvm` read+exec), npm/npx cache (`~/.npm` read+write+exec), corepack (`~/.cache/node`), pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config (`~/.config/pnpm`) |
 | `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only |
 | `python` | pyenv (`~/.pyenv`) |
@@ -141,8 +140,9 @@ Present the `.xclaude` file with comments explaining each rule.
 
 **Lifecycle instructions** — always include these when presenting changes:
 1. `.xclaude` is write-protected inside the sandbox. The user must exit xclaude to create or edit it.
-2. After editing `.xclaude`, restart xclaude. The trust gate will show the config and prompt for approval before it takes effect.
-3. Do NOT suggest using `!` prefix or any in-session workaround — `.xclaude` changes require a restart.
+2. After editing `.xclaude`, invoke `/reload-sandbox` then `/exit`. xclaude will automatically restart with the updated profile and resume the conversation via `--continue`.
+3. The trust gate will show the config changes (as a diff if previously approved) and prompt for approval before it takes effect.
+4. Do NOT suggest using `!` prefix or any other in-session workaround.
 
 </workflow>
 

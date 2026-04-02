@@ -33,27 +33,27 @@ main() {
   local reload_sentinel="${tmpdir}/xclaude-$$-reload"
   local rc=0
   local first_run=1
+  local profile profile_path denial_log log_pid
+  local -a claude_args
 
   while true; do
     # Re-assemble the sandbox profile each iteration so config changes take effect
-    local profile
     profile="$(__xclaude_assemble "$project_dir")" || return 1
 
-    local profile_path="${tmpdir}/xclaude-$$.sb"
+    profile_path="${tmpdir}/xclaude-$$.sb"
     echo "$profile" > "$profile_path"
 
     # Stream sandbox denials to a temp file outside the sandbox.
     # The hook script (inside the sandbox) reads this file since
     # /usr/bin/log refuses to run inside a sandbox.
-    local denial_log="${tmpdir}/xclaude-$$-denials.log"
+    denial_log="${tmpdir}/xclaude-$$-denials.log"
     setopt local_options no_monitor
     /usr/bin/log stream \
       --predicate 'eventMessage CONTAINS "Sandbox" AND eventMessage CONTAINS "deny"' \
       --style compact > "$denial_log" 2>/dev/null &
-    local log_pid=$!
+    log_pid=$!
 
     # First run uses original args; subsequent runs resume the session
-    local -a claude_args
     if (( first_run )); then
       claude_args=("$@")
       first_run=0

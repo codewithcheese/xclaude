@@ -96,8 +96,7 @@ allow-exec ~/.local/bin/custom      # read + exec access
 
 | Name | What it allows |
 |---|---|
-| `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`) |
-| `pnpm` | pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), dlx |
+| `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`), corepack (`~/.cache/node`), pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config (`~/.config/pnpm`) |
 | `bun` | Bun runtime, install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only — `uv tool install` symlinks are redirected to `~/.local/share/uv/bin/` via `UV_TOOL_BIN_DIR` to prevent binary overwrite attacks |
 | `python` | pyenv (`~/.pyenv`) |

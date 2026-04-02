@@ -1,9 +1,14 @@
-# Node.js toolchain (node, npm, npx) sandbox tests
+# Node.js toolchain (node, npm, npx, corepack, pnpm) sandbox tests
 tc_setup node
 
 tc_fixture_dir "${HOME}/.nvm/versions/node"
 tc_fixture_file "${HOME}/.nvm/default-packages"
 tc_fixture_dir "${HOME}/.npm/_cacache"
+tc_fixture_dir "${HOME}/.cache/node/corepack"
+tc_fixture_dir "${HOME}/.pnpm-store/v3"
+tc_fixture_dir "${HOME}/.local/share/pnpm"
+tc_fixture_dir "${HOME}/.config/pnpm"
+tc_fixture_file "${HOME}/.config/pnpm/rc" "store-dir=~/.pnpm-store"
 
 # ── Access ──
 t "node: read ~/.nvm"
@@ -15,6 +20,25 @@ rm -f "${HOME}/.npm/test-write"
 
 t "node: ~/.nvm not writable (read-only)"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.nvm/test-write"
+
+t "node: read ~/.cache/node (corepack)"
+tc_fixture_file "${HOME}/.cache/node/corepack/lastKnownGood.json" '{"pnpm":"9.0.0"}'
+expect_success "allowed" tc_sandboxed cat "${HOME}/.cache/node/corepack/lastKnownGood.json"
+
+t "node: write ~/.cache/node (corepack)"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.cache/node/corepack/test-write"
+rm -f "${HOME}/.cache/node/corepack/test-write"
+
+t "node: read ~/.pnpm-store"
+tc_fixture_file "${HOME}/.pnpm-store/test-data"
+expect_success "allowed" tc_sandboxed cat "${HOME}/.pnpm-store/test-data"
+
+t "node: write ~/.pnpm-store"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.pnpm-store/test-write"
+rm -f "${HOME}/.pnpm-store/test-write"
+
+t "node: read pnpm config"
+expect_success "allowed" tc_sandboxed cat "${HOME}/.config/pnpm/rc"
 
 # ── Usability ──
 # Find node binary: try nvm versions first, then fall back to PATH
@@ -63,6 +87,36 @@ expect_success "eval" tc_sandboxed "$__node_bin" -e "console.log(JSON.stringify(
 # node http (exercises network from sandbox)
 t "node: node http request"
 expect_success "http" tc_sandboxed "$__node_bin" -e "require('https').get('https://httpbin.org/get',r=>{r.on('data',()=>{});r.on('end',()=>console.log('ok'))})"
+
+# ── pnpm usability ──
+__pnpm="${HOME}/.local/share/pnpm/pnpm"
+if [[ ! -x "$__pnpm" ]]; then
+  __pnpm="$(command -v pnpm 2>/dev/null || echo "")"
+fi
+if [[ -n "$__pnpm" ]]; then
+  t "node: pnpm --version"
+  expect_success "runs" tc_sandboxed "$__pnpm" --version
+
+  # pnpm add
+  t "node: pnpm add"
+  mkdir -p "${PROJECT_DIR}/pnpm-test"
+  echo '{"name":"sandbox-test","private":true}' > "${PROJECT_DIR}/pnpm-test/package.json"
+  expect_success "pnpm add" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/pnpm-test' && '$__pnpm' add is-odd 2>&1"
+
+  t "node: pnpm node_modules created"
+  expect_success "exists" tc_sandboxed test -d "${PROJECT_DIR}/pnpm-test/node_modules/is-odd"
+
+  t "node: pnpm-lock.yaml created"
+  expect_success "lockfile" tc_sandboxed test -f "${PROJECT_DIR}/pnpm-test/pnpm-lock.yaml"
+
+  rm -rf "${PROJECT_DIR}/pnpm-test"
+
+  # pnpm dlx (downloads + executes from store)
+  t "node: pnpm dlx executes package"
+  expect_success "dlx" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}' && '$__pnpm' dlx semver 1.2.3 2>&1"
+else
+  echo "SKIP: pnpm binary not found" >&2
+fi
 
 # ── Isolation ──
 t "node: ~/.ssh blocked"
