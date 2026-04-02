@@ -138,10 +138,51 @@ Before presenting the config, verify:
 
 Present the `.xclaude` file with comments explaining each rule.
 
-**Lifecycle instructions** — always include these when presenting changes:
-1. `.xclaude` is write-protected inside the sandbox. The user must exit xclaude to create or edit it.
-2. After editing `.xclaude`, invoke `/reload-sandbox` then `/exit`. xclaude will automatically restart with the updated profile and resume the conversation via `--continue`.
-3. The trust gate will show the config changes (as a diff if previously approved) and prompt for approval before it takes effect.
+### Applying changes via the permission dialog
+
+xclaude includes a permission broker that lets you apply `.xclaude` changes without
+leaving the sandbox. The broker runs outside the sandbox and shows a native macOS
+dialog for user approval.
+
+**To add a rule**, write a JSON request to the request FIFO:
+
+```bash
+echo '{"action":"add","rule":"allow-write ~/.cargo/registry","reason":"cargo install needs write access to download crates"}' > "$XCLAUDE_REQ_FIFO"
+cat "$XCLAUDE_RESP_FIFO"
+```
+
+**To remove a rule:**
+
+```bash
+echo '{"action":"remove","rule":"allow-write ~/.cargo/registry","reason":"no longer needed after install"}' > "$XCLAUDE_REQ_FIFO"
+cat "$XCLAUDE_RESP_FIFO"
+```
+
+**To run a one-off command outside the sandbox** (when adding a permanent rule is overkill):
+
+```bash
+echo '{"action":"exec","command":["brew","install","ripgrep"],"reason":"need ripgrep for project search"}' > "$XCLAUDE_REQ_FIFO"
+cat "$XCLAUDE_RESP_FIFO"
+```
+
+**Response format:**
+- `{"status":"approved"}` — user approved (rule applied or command ran)
+- `{"status":"denied"}` — user denied
+- `{"status":"error","message":"..."}` — validation failed
+- For `exec`: `{"status":"approved","stdout":"...","stderr":"...","exit_code":0}`
+
+**Important:**
+- The broker validates rules through the same validator as `.xclaude` files — invalid rules are rejected before the dialog is shown.
+- The broker shows the user the **actual rule and what it grants**, not your description. Your `reason` field is shown separately as supplementary context.
+- For `exec`: commands must be literal strings (no shell expansion, `$`, backticks, pipes, etc.).
+- Rule changes take effect on next xclaude restart. The trust gate will still prompt on restart.
+- Prefer `exec` for one-off commands. Prefer `add` only for ongoing access needs.
+- Always try alternatives within current permissions first (Phase 1) before using the dialog.
+
+**Lifecycle after applying a rule change:**
+1. Rule is written to `.xclaude` by the broker (outside the sandbox).
+2. Inform the user that the change takes effect on next restart.
+3. The trust gate will show the config changes and prompt for approval on next launch.
 4. Do NOT suggest using `!` prefix or any other in-session workaround.
 
 </workflow>

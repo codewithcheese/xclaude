@@ -36,6 +36,16 @@ main() {
   local profile profile_path denial_log log_pid
   local -a claude_args
 
+  # Permission dialog broker — runs outside the sandbox, listens
+  # for requests from Claude via named pipes.
+  local req_fifo="${tmpdir}/xclaude-$$-req.fifo"
+  local resp_fifo="${tmpdir}/xclaude-$$-resp.fifo"
+  local broker_pid
+  mkfifo "$req_fifo" "$resp_fifo"
+  zsh "${__xclaude_dir}/xclaude-broker.zsh" \
+    "$req_fifo" "$resp_fifo" "$project_dir" "$xclaude_dir_resolved" &
+  broker_pid=$!
+
   while true; do
     # Re-assemble the sandbox profile each iteration so config changes take effect
     profile="$(__xclaude_assemble "$project_dir")" || return 1
@@ -65,6 +75,8 @@ main() {
     XCLAUDE_ACTIVE=1 \
     XCLAUDE_DENIAL_LOG="$denial_log" \
     XCLAUDE_RELOAD_SENTINEL="$reload_sentinel" \
+    XCLAUDE_REQ_FIFO="$req_fifo" \
+    XCLAUDE_RESP_FIFO="$resp_fifo" \
     sandbox-exec \
       -D "PROJECT_DIR=${project_dir}" \
       -D "TMPDIR=${tmpdir}" \
@@ -90,6 +102,11 @@ main() {
     # Normal exit — break out of the loop
     break
   done
+
+  # Cleanup broker and FIFOs
+  kill "$broker_pid" 2>/dev/null || true
+  wait "$broker_pid" 2>/dev/null || true
+  rm -f "$req_fifo" "$resp_fifo"
 
   return $rc
 }
