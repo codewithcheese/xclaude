@@ -1,0 +1,43 @@
+;; Google Chrome toolchain
+;;
+;; Launches system Google Chrome with remote debugging for CDP connections.
+;; Profile data goes to a project-local directory via --user-data-dir,
+;; so no extra write paths are needed for profile/cache data.
+;;
+;; Typical usage:
+;;   /Applications/Google Chrome.app/Contents/MacOS/Google Chrome \
+;;     --remote-debugging-port=9222 --user-data-dir=./chrome-profile \
+;;     --headless=new --no-sandbox --no-first-run --no-default-browser-check
+;; Connect via:
+;;   playwright.chromium.connectOverCDP('http://localhost:9222')
+;;
+;; --no-sandbox disables Chrome's internal process sandbox, which cannot
+;; nest inside the Seatbelt sandbox (sandbox-exec). The Seatbelt sandbox
+;; provides the real filesystem isolation.
+
+;; Exec — Chrome binary and helper processes (renderer, GPU, utility)
+;; Helper processes live inside the app bundle at Contents/Frameworks/
+(allow process-exec
+  (subpath "/Applications/Google Chrome.app"))
+
+;; Read — app bundle resources (frameworks, locales, pak files)
+(allow file-read-data
+  (subpath "/Applications/Google Chrome.app"))
+
+;; Read — macOS integration: locale, input methods, spelling
+;; Chromium reads these during startup for IME support
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Input Methods"))
+  (subpath (string-append (param "HOME") "/Library/Keyboard Layouts"))
+  (subpath (string-append (param "HOME") "/Library/Spelling")))
+
+;; Read — Chrome branding check on startup
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Google")))
+
+;; Crash reporter — Crashpad reads settings and writes crash dumps
+;; to the default Chrome support directory even with custom --user-data-dir
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Application Support/Google/Chrome")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Application Support/Google/Chrome")))

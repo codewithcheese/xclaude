@@ -437,7 +437,7 @@ echo "=== Assembly ==="
 
 t "assembly without config produces base only"
 empty_dir="$(mktemp -d)"
-out="$(__xclaude_assemble "$empty_dir")"
+out="$(HOME="$empty_dir" __xclaude_assemble "$empty_dir")"
 assert_contains '(deny default)' "$out"
 assert_contains '(param "PROJECT_DIR")' "$out"
 assert_not_contains 'toolchain:' "$out"

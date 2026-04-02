@@ -38,7 +38,9 @@ tc_sandboxed() {
     -D "PROJECT_DIR=${PROJECT_DIR}" \
     -D "TMPDIR=${TMPDIR_RESOLVED}" \
     -D "CACHE_DIR=${CACHE_DIR}" \
+    -D "VOLATILE_DIR=${VOLATILE_DIR}" \
     -D "HOME=${HOME_DIR}" \
+    -D "XCLAUDE_DIR=${XCLAUDE_DIR}" \
     -f "$__tc_profile_path" \
     -- "$@"
 }

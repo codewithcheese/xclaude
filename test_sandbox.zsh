@@ -82,6 +82,8 @@ skip() {
 PROJECT_DIR="$(readlink -f "$(mktemp -d)")"
 TMPDIR_RESOLVED="$(readlink -f "${TMPDIR:-/private/tmp}")"
 CACHE_DIR="${TMPDIR_RESOLVED%/T*}/C"
+VOLATILE_DIR="${TMPDIR_RESOLVED%/T*}/X"
+XCLAUDE_DIR="$(readlink -f "${SCRIPT_DIR}")"
 HOME_DIR="${HOME}"
 
 # Bypass trust gate — tests manage their own configs
@@ -158,7 +160,9 @@ sandboxed() {
     -D "PROJECT_DIR=${PROJECT_DIR}" \
     -D "TMPDIR=${TMPDIR_RESOLVED}" \
     -D "CACHE_DIR=${CACHE_DIR}" \
+    -D "VOLATILE_DIR=${VOLATILE_DIR}" \
     -D "HOME=${HOME_DIR}" \
+    -D "XCLAUDE_DIR=${XCLAUDE_DIR}" \
     -f "$PROFILE_PATH" \
     -- "$@"
 }
