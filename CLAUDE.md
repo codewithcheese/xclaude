@@ -165,7 +165,11 @@ The test runner auto-discovers `toolchains/*.test.zsh` — no registration neede
 
 Add the toolchain to the "Available toolchains" table.
 
-### 4. Add a CI job
+### 4. Update `plugin/skills/debug-sandbox/SKILL.md`
+
+Add the toolchain to the skill's toolchain table so the debug-sandbox skill knows about it when diagnosing denials. Update the "base profile already covers" section if relevant.
+
+### 5. Add a CI job
 
 Each toolchain gets its own parallel CI job in `.github/workflows/test.yml`. The job installs the tool at its canonical path and runs `zsh test_sandbox.zsh --toolchain <name>`.
 

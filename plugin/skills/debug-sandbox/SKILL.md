@@ -55,6 +55,7 @@ Comments start with `#`. Blank lines are ignored.
 | `cmux` | cmux app bundle (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright` read+write+exec) |
 | `playwright-chromium` | Chromium-specific macOS paths: locale, input methods, spelling, crash reporter, branding. Requires `tool playwright` |
+| `chrome` | Google Chrome (`/Applications/Google Chrome.app` read+exec), macOS integration (locale, input methods, spelling), crash reporter (`~/Library/Application Support/Google/Chrome`). Use `--no-sandbox --user-data-dir=./profile` |
 
 Always prefer a `tool` directive over manual `allow-*` rules when a toolchain exists.
 Toolchains are vetted for least privilege (e.g. `node` makes `~/.nvm` read-only,
