@@ -1,0 +1,36 @@
+;; ============================================================
+;; Codex-specific process execution
+;; ============================================================
+(allow process-exec
+  ;; User-local binaries are common install targets for Codex CLI
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  ;; Current install location on this machine via NVM
+  (subpath (string-append (param "HOME") "/.nvm")))
+
+;; ============================================================
+;; Codex-specific read permissions
+;; ============================================================
+
+;; Codex CLI binary locations
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.nvm")))
+
+;; Codex config, auth, sessions, plugins, skills, and logs
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.codex")))
+
+;; xcodex user config — read-only for inspection/debugging
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/xcodex")))
+
+;; ============================================================
+;; Codex-specific write permissions
+;; ============================================================
+(allow file-write*
+  ;; Codex state, auth, session persistence, plugin cache, logs
+  (subpath (string-append (param "HOME") "/.codex")))
+
+;; Sandbox config — prevents privilege escalation on next launch
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xcodex")))

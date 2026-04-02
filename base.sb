@@ -1,109 +1,16 @@
-(version 1)
-(deny default)
-
 ;; ============================================================
-;; Non-filesystem permissions
-;; Allowed broadly — the goal of this profile is filesystem
-;; isolation, not network or IPC restriction.
+;; Claude-specific process execution
 ;; ============================================================
-(allow network*)
-(allow mach*)
-(allow ipc-posix*)
-(allow sysctl*)
-(allow signal)
-(allow iokit*)
-(allow process-info*)
-(allow system*)
-;; Bun checks codesigning status on startup — without this
-;; the TUI silently fails to render (blank screen).
-(allow process-codesigning-status*)
-;; CFPreferences API — node, rustup, and other tools read
-;; user/system preferences on startup.
-(allow user-preference-read)
-;; JIT / dynamic code generation — enables runtime executable memory
-;; (MAP_JIT) for JS JIT compilers (V8, JSC, Bun) and WASM runtimes.
-;; This is one gate among several: hardened runtime entitlements
-;; (com.apple.security.cs.allow-jit) and AMFI checks also apply.
-;; Not all engines require it (QuickJS interprets, V8 has jitless
-;; mode) but WASM execution and optimal JS performance depend on it.
-;;
-;; Security trade-off: allowing this weakens in-process exploit
-;; hardening (attacker can inject shellcode instead of needing
-;; ROP/JOP). However, JIT code is still sandboxed — all syscalls
-;; are checked against the policy. In our threat model (AI agent
-;; that can already exec bash/node/python), the marginal risk is
-;; low: the agent can already run arbitrary sandboxed code via
-;; allowed binaries, so JIT adds no new capability.
-(allow dynamic-code-generation)
-
-;; ============================================================
-;; Process execution
-;; ============================================================
-(allow process-fork)
 (allow process-exec
-  ;; System binaries
-  (subpath "/bin")
-  (subpath "/usr/bin")
-  ;; Homebrew binaries (git, node, etc.)
-  (subpath "/opt/homebrew")
   ;; Claude Code — ~/.local/bin/claude is a symlink to
   ;; ~/.local/share/claude/versions/<ver>. Seatbelt resolves
   ;; symlinks, so both paths need exec permission.
   (subpath (string-append (param "HOME") "/.local/bin"))
-  (subpath (string-append (param "HOME") "/.local/share/claude"))
-  ;; Scripts within the project
-  (subpath (param "PROJECT_DIR")))
+  (subpath (string-append (param "HOME") "/.local/share/claude")))
 
 ;; ============================================================
-;; Read permissions: strict allowlist for file-read-data
-;;
-;; file-read-metadata: global — needed for stat/realpath on
-;;   path components; without this basic path resolution fails.
-;; file-read-xattr: global — process startup crashes without it
-;;   (discovered via bisection testing).
-;; file-map-executable: global — dyld needs to mmap shared
-;;   libraries from various system paths.
-;; file-read-data: allowlist only — this is the actual security
-;;   boundary for file contents.
+;; Claude-specific read permissions
 ;; ============================================================
-(allow file-read-metadata (subpath "/"))
-(allow file-read-xattr (subpath "/"))
-(allow file-map-executable (subpath "/"))
-
-;; Root directory entry itself — (subpath "/bin") does NOT cover
-;; the "/" path. Without this, process startup crashes (exit 134).
-(allow file-read-data (path "/"))
-
-;; System runtime — needed by dyld, bash, and system CLI tools
-(allow file-read-data
-  (subpath "/bin")
-  (subpath "/sbin")
-  (subpath "/usr")
-  (subpath "/System")
-  (subpath "/Library")
-  (subpath "/private/etc")
-  (subpath "/private/var/db")
-  (subpath "/dev")
-  (subpath "/opt/homebrew"))
-
-;; Temp directories — Claude writes bash output to /tmp/claude-501/
-;; and needs to read it back
-(allow file-read-data
-  (subpath "/private/tmp")
-  (subpath (param "TMPDIR")))
-
-;; Spotlight/mds cache — needed by Security framework for keychain
-;; TMPDIR is .../T/, this is the sibling .../C/ directory
-(allow file-read-data
-  (subpath (param "CACHE_DIR")))
-
-;; Volatile dir — .../X/ sibling of TMPDIR. macOS writes code-signing
-;; clones here when launching binaries (e.g. Chromium, Electron apps).
-(allow file-read-data
-  (subpath (param "VOLATILE_DIR")))
-(allow file-write*
-  (subpath (param "VOLATILE_DIR")))
-
 
 ;; Claude Code binary (Bun/Mach-O) and symlink target
 (allow file-read-data
@@ -131,23 +38,6 @@
 (allow file-read-data
   (subpath (string-append (param "HOME") "/Library/Keychains")))
 
-;; git config — needed for git commands
-(allow file-read-data
-  (subpath (string-append (param "HOME") "/.gitconfig")))
-
-;; Shell config — Claude reads shell rc files for environment setup
-(allow file-read-data
-  (path (string-append (param "HOME") "/.zshrc"))
-  (path (string-append (param "HOME") "/.bashrc"))
-  (path (string-append (param "HOME") "/.profile"))
-  (path (string-append (param "HOME") "/.zprofile"))
-  (path (string-append (param "HOME") "/.bash_profile"))
-  (path (string-append (param "HOME") "/.zshenv")))
-
-;; Project directory
-(allow file-read-data
-  (subpath (param "PROJECT_DIR")))
-
 ;; xclaude plugin — loaded via --plugin-dir, needs read for manifest,
 ;; hooks, skills; exec for the hook script
 (allow file-read-data
@@ -157,59 +47,17 @@
   (literal (string-append (param "XCLAUDE_DIR") "/plugin/hooks/sandbox-denial-hook.sh")))
 
 ;; ============================================================
-;; Write permissions: strict allowlist
+;; Claude-specific write permissions
 ;; ============================================================
-
 (allow file-write*
-  ;; Project directory — primary workspace
-  (subpath (param "PROJECT_DIR"))
   ;; Claude Code state, debug logs, settings
   (subpath (string-append (param "HOME") "/.claude"))
   ;; Claude Code updates ~/.claude.json and sibling lock/temp files
   (path (string-append (param "HOME") "/.claude.json"))
   (path (string-append (param "HOME") "/.claude.json.lock"))
   ;; Claude Code runtime lock files
-  (subpath (string-append (param "HOME") "/.local/state/claude"))
-  ;; Temp directories (TMPDIR is usually /private/var/folders/.../T/)
-  (subpath "/private/tmp")
-  (subpath (param "TMPDIR"))
-  ;; Spotlight/mds cache — sibling of TMPDIR at .../C/
-  ;; Needed by Security framework for keychain access
-  (subpath (param "CACHE_DIR")))
-
-;; ── Write denies (after allows — last-match-wins) ────────────
-;; Protect security-sensitive files inside writable directories.
-;; Uses (literal) for files, (subpath) for directories.
+  (subpath (string-append (param "HOME") "/.local/state/claude")))
 
 ;; Sandbox config — prevents privilege escalation on next launch
 (deny file-write*
   (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
-
-;; Environment files — often contain secrets and API keys
-(deny file-write*
-  (literal (string-append (param "PROJECT_DIR") "/.env"))
-  (literal (string-append (param "PROJECT_DIR") "/.env.local"))
-  (literal (string-append (param "PROJECT_DIR") "/.env.development"))
-  (literal (string-append (param "PROJECT_DIR") "/.env.staging"))
-  (literal (string-append (param "PROJECT_DIR") "/.env.test"))
-  (literal (string-append (param "PROJECT_DIR") "/.env.production")))
-
-;; Git hooks — prevent injection of arbitrary code that runs
-;; on git commit, push, etc.
-(deny file-write*
-  (subpath (string-append (param "PROJECT_DIR") "/.git/hooks")))
-
-;; ============================================================
-;; Device and pseudo-terminal access
-;; Needed for terminal I/O and Claude Code's pty-based
-;; subprocess management.
-;; ============================================================
-(allow file-read* file-write* file-ioctl
-  (path "/dev/null")
-  (path "/dev/tty")
-  (path "/dev/random")
-  (path "/dev/urandom")
-  (path "/dev/dtracehelper")
-  (path "/dev/ptmx")
-  (regex #"^/dev/pty.*")
-  (regex #"^/dev/ttys.*"))

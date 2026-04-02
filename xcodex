@@ -1,0 +1,50 @@
+#!/bin/zsh
+# xcodex — sandboxed Codex CLI launcher
+# Usage: xcodex [codex args...]
+
+__xcodex_dir="${0:A:h}"
+source "${__xcodex_dir}/xcodex.lib.zsh"
+
+main() {
+  local tmpdir="${TMPDIR:-/private/tmp}"
+  local home_dir="$(readlink -f "${HOME}")"
+  local project_dir="$(readlink -f "${PWD}")"
+  tmpdir="$(readlink -f "$tmpdir")"
+
+  local cache_dir="${tmpdir%/T*}/C"
+  local volatile_dir="${tmpdir%/T*}/X"
+
+  if [[ ! -f "${__xcodex_dir}/base-common.sb" || ! -f "${__xcodex_dir}/base-codex.sb" ]]; then
+    echo "xcodex: base profile fragments not found at ${__xcodex_dir}/base-common.sb and ${__xcodex_dir}/base-codex.sb" >&2
+    return 1
+  fi
+
+  if ! command -v sandbox-exec &>/dev/null; then
+    echo "xcodex: sandbox-exec not found, running without sandbox" >&2
+    codex "$@"
+    return
+  fi
+
+  local xcodex_dir_resolved="$(readlink -f "${__xcodex_dir}")"
+  local profile profile_path rc=0
+
+  profile="$(__xcodex_assemble "$project_dir")" || return 1
+  profile_path="${tmpdir}/xcodex-$$.sb"
+  echo "$profile" > "$profile_path"
+
+  sandbox-exec \
+    -D "PROJECT_DIR=${project_dir}" \
+    -D "TMPDIR=${tmpdir}" \
+    -D "CACHE_DIR=${cache_dir}" \
+    -D "VOLATILE_DIR=${volatile_dir}" \
+    -D "HOME=${home_dir}" \
+    -D "XCODEX_DIR=${xcodex_dir_resolved}" \
+    -f "$profile_path" \
+    -- codex --dangerously-bypass-approvals-and-sandbox "$@"
+  rc=$?
+
+  rm -f "$profile_path"
+  return $rc
+}
+
+main "$@"

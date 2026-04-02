@@ -1,6 +1,6 @@
 # xclaude
 
-A macOS Seatbelt sandbox for [Claude Code](https://claude.com/claude-code). Wraps the `claude` binary in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
+A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude` and Codex CLI via `xcodex`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
 
 ## Why
 
@@ -48,11 +48,12 @@ These attack patterns are all blocked by Seatbelt's kernel-level enforcement and
    export PATH="$PWD/xclaude:$PATH"   # add to your shell rc
    ```
 
-2. Run it from any project directory:
+2. Run it from any project directory, using the wrapper for your agent:
 
    ```bash
    cd /path/to/your/project
-   xclaude
+   xclaude    # Claude Code
+   xcodex     # Codex CLI
    ```
 
 That's it. xclaude assembles a profile from `base.sb` (plus any user/project config), launches Claude Code under `sandbox-exec`, and bypasses Claude's internal permission prompts (`--dangerously-skip-permissions`) — the OS sandbox is the actual boundary.
@@ -83,6 +84,17 @@ When a project has a `.xclaude` config, xclaude computes its sha256 hash and che
 Approved hashes live in `~/.config/xclaude/trusted`; copies of approved configs in `~/.config/xclaude/trusted.d/` (used to render diffs).
 
 The user-level config (`~/.config/xclaude/config`) is **not** trust-gated — you own that file and edits take effect on the next launch.
+
+### xcodex
+
+`xcodex` follows the same DSL and trust model, but uses Codex-specific defaults:
+
+- Project config: `.xcodex`
+- User config: `~/.config/xcodex/config`
+- Trust ledger: `~/.config/xcodex/trusted`
+- Base fragments: `base-common.sb` + `base-codex.sb`
+
+Its base profile grants Codex access to `~/.codex` state and its current CLI install location under `~/.nvm`, instead of Claude-specific paths like `~/.claude` and `~/.local/share/claude`.
 
 ## Project configuration
 
@@ -256,9 +268,14 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 
 | File | Purpose |
 |---|---|
-| `xclaude` | Executable entry point — sources the library, runs `main` in a reload loop |
-| `xclaude.lib.zsh` | DSL parser, validator, SBPL generator, profile assembler, trust gate |
-| `base.sb` | Core SBPL profile (`deny default` + everything Claude Code itself needs) |
+| `xclaude` | Executable entry point — sources library, runs sandboxed Claude (reload loop) |
+| `xcodex` | Executable entry point — sources library, runs sandboxed Codex CLI |
+| `xsandbox.lib.zsh` | Shared DSL parser, validator, SBPL generator, assembler, trust gate |
+| `xclaude.lib.zsh` | Claude-specific wrapper over the shared library |
+| `xcodex.lib.zsh` | Codex-specific wrapper over the shared library |
+| `base-common.sb` | Shared SBPL base (`deny default` + common rules) |
+| `base.sb` | Claude-specific SBPL fragment layered on top of `base-common.sb` |
+| `base-codex.sb` | Codex-specific SBPL fragment layered on top of `base-common.sb` |
 | `toolchains/<name>.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/<name>.test.zsh` | Sandbox tests for each toolchain |
 | `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, ...) |
