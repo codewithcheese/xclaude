@@ -35,10 +35,10 @@ Symlink traversal, hardlinks, /tmp script execution, child process inheritance (
 
 ## Setup
 
-1. Source the wrapper in your shell:
+1. Add xclaude to your PATH:
 
 ```bash
-source /path/to/xclaude.zsh
+export PATH="/path/to/xclaude:$PATH"
 ```
 
 2. Use `xclaude` instead of `claude`:
@@ -134,7 +134,8 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 
 | File | Purpose |
 |---|---|
-| `xclaude.zsh` | Shell wrapper — DSL parser, validator, SBPL generator, assembler, trust gate |
+| `xclaude` | Executable entry point — sources library, runs sandboxed Claude |
+| `xclaude.lib.zsh` | Library: DSL parser, validator, SBPL generator, assembler, trust gate |
 | `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
 | `toolchains/*.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/*.test.zsh` | Sandbox tests for each toolchain |
@@ -148,10 +149,10 @@ All layers are additive. The base profile provides `(deny default)` and cannot b
 
 | Parameter | Set by | Example |
 |---|---|---|
-| `HOME` | `xclaude.zsh` | `/Users/tom` |
-| `PROJECT_DIR` | `xclaude.zsh` (resolved via `readlink -f`) | `/Users/tom/myproject` |
-| `TMPDIR` | `xclaude.zsh` (resolved via `readlink -f`) | `/private/var/folders/.../T` |
-| `CACHE_DIR` | `xclaude.zsh` (derived from TMPDIR) | `/private/var/folders/.../C` |
+| `HOME` | `xclaude` | `/Users/tom` |
+| `PROJECT_DIR` | `xclaude` (resolved via `readlink -f`) | `/Users/tom/myproject` |
+| `TMPDIR` | `xclaude` (resolved via `readlink -f`) | `/private/var/folders/.../T` |
+| `CACHE_DIR` | `xclaude` (derived from TMPDIR) | `/private/var/folders/.../C` |
 
 ## Testing
 

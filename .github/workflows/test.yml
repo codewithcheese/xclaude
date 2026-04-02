@@ -4,7 +4,8 @@ on:
     branches: [main]
     paths:
       - 'base.sb'
-      - 'xclaude.zsh'
+      - 'xclaude'
+      - 'xclaude.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
@@ -13,7 +14,8 @@ on:
     branches: [main]
     paths:
       - 'base.sb'
-      - 'xclaude.zsh'
+      - 'xclaude'
+      - 'xclaude.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'

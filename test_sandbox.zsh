@@ -14,7 +14,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
-source "${SCRIPT_DIR}/xclaude.zsh"
+__xclaude_dir="${SCRIPT_DIR}"
+source "${SCRIPT_DIR}/xclaude.lib.zsh"
 
 # ── Pre-flight checks ────────────────────────────────────────
 if [[ "$(uname)" != "Darwin" ]]; then
