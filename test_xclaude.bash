@@ -10,7 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Replicate the xclaude functions in bash ───────────────────
-# The real xclaude.zsh uses zsh syntax. For testing, we re-source
+# The real xclaude uses zsh syntax. For testing, we re-source
 # a bash-compatible shim of the core functions (parser, validator,
 # generator). The SBPL output is identical regardless of shell.
 __xclaude_dir="$SCRIPT_DIR"

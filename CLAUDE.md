@@ -35,7 +35,7 @@ plugin/
 ## Architecture
 
 ```
-xclaude.zsh              # Shell wrapper: DSL parser → validator → SBPL generator → assembler
+xclaude              # Shell wrapper: DSL parser → validator → SBPL generator → assembler
 base.sb                  # Core SBPL profile (deny default + Claude Code needs)
 toolchains/
   <name>.sb              # SBPL fragment for a toolchain
@@ -55,7 +55,7 @@ The DSL (`.xclaude` files) is the safety boundary between user/project config an
 
 ## SBPL parameters
 
-All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude.zsh`.
+All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude`.
 
 | Parameter | Resolves to |
 |---|---|
@@ -64,7 +64,7 @@ All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude
 | `TMPDIR` | `/private/var/folders/.../T/` |
 | `CACHE_DIR` | `/private/var/folders/.../C/` (sibling of TMPDIR) |
 | `VOLATILE_DIR` | `/private/var/folders/.../X/` (sibling of TMPDIR, code-signing clones) |
-| `XCLAUDE_DIR` | Absolute path of the xclaude installation (where `xclaude.zsh` lives) |
+| `XCLAUDE_DIR` | Absolute path of the xclaude installation (where `xclaude` lives) |
 
 Use `(param "NAME")` in SBPL — never hardcode paths.
 
@@ -222,7 +222,7 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 ### Test structure
 
-- `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude.zsh` since they use zsh syntax. If you change the DSL logic in `xclaude.zsh`, update the corresponding functions in `test_xclaude.bash` too.
+- `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude` since they use zsh syntax. If you change the DSL logic in `xclaude`, update the corresponding functions in `test_xclaude.bash` too.
 - `test_sandbox.zsh` — tests real `sandbox-exec` enforcement. Runs base profile tests (reads, writes, exec, escape vectors), then auto-discovers and runs `toolchains/*.test.zsh`.
 - `toolchains/*.test.zsh` — each file sources `test_helpers.zsh` and tests one toolchain. Creates fixture dirs, verifies access, checks tool usability if installed.
 
@@ -242,7 +242,7 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 ## DSL safety rules
 
-The validator in `xclaude.zsh` enforces:
+The validator in `xclaude` enforces:
 
 - Only four verbs: `tool`, `allow-read`, `allow-write`, `allow-exec`
 - Paths must start with `~/`, `./`, or `/`
@@ -251,4 +251,4 @@ The validator in `xclaude.zsh` enforces:
 - Paths targeting `.xclaude` as basename rejected (config is protected)
 - Tool names must match a file in `toolchains/`
 
-If you add a new validation rule, add it to both `xclaude.zsh` and the duplicate in `test_xclaude.bash`.
+If you add a new validation rule, add it to both `xclaude` and the duplicate in `test_xclaude.bash`.

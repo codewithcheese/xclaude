@@ -12,7 +12,7 @@
 
 # These must be set by the runner before sourcing:
 #   PROJECT_DIR, TMPDIR_RESOLVED, CACHE_DIR, HOME_DIR
-#   __xclaude_trust, __xclaude_assemble (from xclaude.zsh)
+#   __xclaude_trust, __xclaude_assemble (from xclaude)
 
 __tc_profile_path=""
 __tc_fixtures=()

@@ -1,3 +1,7 @@
+#!/bin/zsh
+# xclaude — sandboxed Claude Code launcher
+# Usage: xclaude [claude args...]
+
 __xclaude_dir="${0:A:h}"
 
 # ── DSL parser ────────────────────────────────────────────────
@@ -274,8 +278,8 @@ __xclaude_assemble() {
   echo "$assembled"
 }
 
-# ── Main entry point ─────────────────────────────────────────
-xclaude() {
+# ── Main ─────────────────────────────────────────────────────
+main() {
   local tmpdir="${TMPDIR:-/private/tmp}"
   # Resolve symlinks (Seatbelt uses real paths, /var -> /private/var)
   local home_dir="$(readlink -f "${HOME}")"
@@ -363,3 +367,5 @@ xclaude() {
 
   return $rc
 }
+
+main "$@"
