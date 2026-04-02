@@ -41,3 +41,13 @@
   (subpath (string-append (param "HOME") "/Library/Application Support/Google/Chrome")))
 (allow file-write*
   (subpath (string-append (param "HOME") "/Library/Application Support/Google/Chrome")))
+
+;; Updater — GoogleUpdater runs on Chrome launch, writes state and cache
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Application Support/Google/GoogleUpdater")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Application Support/Google/GoogleUpdater")))
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Caches/com.google.GoogleUpdater")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Caches/com.google.GoogleUpdater")))
