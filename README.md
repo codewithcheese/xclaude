@@ -1,60 +1,94 @@
 # xclaude
 
-macOS Seatbelt sandbox for Claude Code. Wraps the `claude` binary in `sandbox-exec` with a strict SBPL profile that restricts filesystem access to an explicit allowlist.
+A macOS Seatbelt sandbox for [Claude Code](https://claude.com/claude-code). Wraps the `claude` binary in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
 
 ## Why
 
-Claude Code's built-in sandbox (`sandbox.enabled` in settings) has [known issues](https://github.com/anthropics/claude-code/issues/31473) on macOS — `denyRead` is ineffective, `allowRead` doesn't exist in the schema, and the generated SBPL profiles can crash silently. This project replaces it with a hand-tuned Seatbelt profile that actually works.
+By default Claude Code can read and write anywhere your shell can — including `~/.ssh`, `~/.aws`, browser profiles, shell history, and any document on disk. Anthropic ships a built-in sandbox option (`sandbox.enabled` in settings) but it has [known issues](https://github.com/anthropics/claude-code/issues/31473) on macOS: `denyRead` is ineffective, `allowRead` doesn't exist in the schema, and the generated SBPL profiles can crash the process silently.
 
-## What it does
+xclaude replaces it with a hand-tuned Seatbelt profile that **defaults to strict deny**, lets you opt in to extra access via a tiny safe DSL, and ships with a Claude Code plugin so the agent helps you fix denials instead of working around them.
 
-- **Reads**: `file-read-data` allowlist only. System runtime paths, Claude config, project directory, and declared toolchains. Everything else in `$HOME` is blocked.
-- **Writes**: project directory, Claude state files, tmp directories. Nothing else unless declared.
-- **Non-filesystem**: network, IPC, Mach ports are open (the goal is filesystem isolation).
-- **Exec**: system binaries, Homebrew, Claude binary, project scripts, and declared toolchains.
+## What it protects
+
+The sandbox enforces **filesystem isolation only**. Network, IPC, and Mach ports are open — see [Known limitations](#known-limitations) for the trade-offs.
+
+### Reads, writes, exec
+
+| Operation | Default policy |
+|---|---|
+| `file-read-data` | Strict allowlist: system runtime, Claude config, project directory, declared toolchains |
+| `file-write*` | Project directory, Claude state files, tmp directories, code-signing clones — nothing else without an explicit rule |
+| `process-exec` | System binaries, Homebrew, Claude binary, project scripts, declared toolchains |
+| `network*`, `mach*`, `ipc-posix*` | All allowed |
 
 ### Blocked by default
 
-`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/Desktop`, `~/Downloads`, `~/Documents`, `~/Library` (except Keychains for auth), `~/.zsh_history`, and anything else not explicitly listed.
+`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/Desktop`, `~/Downloads`, `~/Documents`, `~/Library` (except `~/Library/Keychains` for OAuth), `~/.zsh_history`, and anything else not explicitly listed.
 
 ### Write-protected inside the project
 
-Even though the project directory is writable, these files are protected by deny-after-allow rules (SBPL last-match-wins):
+The project directory is writable, but these paths are protected by deny-after-allow rules (SBPL last-match-wins) so the agent cannot tamper with them:
 
-- `.xclaude` — sandbox config, prevents privilege escalation
-- `.env`, `.env.local`, `.env.production` — secrets and API keys
-- `.git/hooks/` — prevents injection of code that runs on git operations
-
-### Trust gate
-
-When a project has a `.xclaude` config, xclaude computes its sha256 hash and checks `~/.config/xclaude/trusted`. If the config is new or changed, xclaude shows its contents and prompts for approval before applying it. This prevents a malicious commit from silently widening sandbox access.
+| Path | Why |
+|---|---|
+| `.xclaude` | Sandbox config — prevents privilege escalation on next launch |
+| `.env`, `.env.local`, `.env.development`, `.env.staging`, `.env.test`, `.env.production` | Common locations for secrets and API keys |
+| `.git/hooks/` | Prevents injection of code that runs on git operations |
 
 ### Verified escape vectors
 
-Symlink traversal, hardlinks, /tmp script execution, child process inheritance (python, node, bash), fd redirects, and curl exfiltration of blocked files — all blocked by Seatbelt's kernel-level enforcement.
+These attack patterns are all blocked by Seatbelt's kernel-level enforcement and covered by the test suite: symlink traversal, hardlinks, `/tmp` script execution, child process inheritance (python, node, bash), file descriptor redirects, and `curl` exfiltration of locally blocked files.
 
-## Setup
+## Quick start
 
-1. Add xclaude to your PATH:
+1. Clone the repo and add it to your PATH:
 
-```bash
-export PATH="/path/to/xclaude:$PATH"
+   ```bash
+   git clone https://github.com/codewithcheese/xclaude.git
+   export PATH="$PWD/xclaude:$PATH"   # add to your shell rc
+   ```
+
+2. Run it from any project directory:
+
+   ```bash
+   cd /path/to/your/project
+   xclaude
+   ```
+
+That's it. xclaude assembles a profile from `base.sb` (plus any user/project config), launches Claude Code under `sandbox-exec`, and bypasses Claude's internal permission prompts (`--dangerously-skip-permissions`) — the OS sandbox is the actual boundary.
+
+If your project needs additional access (a runtime, a custom binary, a config file outside the project), add a `.xclaude` file. The bundled `/debug-sandbox` skill will draft it for you the first time something gets blocked.
+
+## How it works
+
+```
+base.sb                       # core profile (always applied)
++ ~/.config/xclaude/config    # personal rules for all projects (optional)
++ ./.xclaude                  # project-specific rules (optional, trust-gated)
+        │
+        ▼
+sandbox-exec -f <assembled>   --   claude --dangerously-skip-permissions --plugin-dir <xclaude>
 ```
 
-2. Use `xclaude` instead of `claude`:
+All layers are **additive**. The base profile starts with `(deny default)` and the DSL has no `deny` verb, so config files can only widen access — never narrow what the base profile already grants.
 
-```bash
-cd /path/to/your/project
-xclaude
-```
+The wrapper resolves all paths through `readlink -f` before passing them to `sandbox-exec` because Seatbelt resolves symlinks before matching rules.
 
-The wrapper assembles a sandbox profile from the base policy, any declared toolchains, and project-specific config, then launches Claude under `sandbox-exec`. Claude's internal permissions are bypassed (`--dangerously-skip-permissions`) since the OS sandbox enforces the real boundaries.
+### Trust gate
+
+`.xclaude` files are security-sensitive — they control what the sandbox allows. xclaude treats them like direnv: explicit approval is required.
+
+When a project has a `.xclaude` config, xclaude computes its sha256 hash and checks `~/.config/xclaude/trusted`. If the file is **new**, xclaude prints its full contents and prompts for approval. If it has **changed** since it was last approved, xclaude prints a unified diff against the stored copy and prompts again. This prevents a malicious commit from silently widening sandbox access when you `cd` into a cloned repo.
+
+Approved hashes live in `~/.config/xclaude/trusted`; copies of approved configs in `~/.config/xclaude/trusted.d/` (used to render diffs).
+
+The user-level config (`~/.config/xclaude/config`) is **not** trust-gated — you own that file and edits take effect on the next launch.
 
 ## Project configuration
 
 Create a `.xclaude` file in your project root to declare toolchains and extra paths.
 
-### DSL reference
+### DSL
 
 ```sh
 # Toolchains — predefined sandbox profiles
@@ -62,9 +96,9 @@ tool node
 tool uv
 
 # Extra paths
-allow-read ~/.config/special       # read-only access
-allow-write ./local/.share          # read + write access
-allow-exec ~/.local/bin/custom      # read + exec access
+allow-read  ~/.config/special      # read-only access
+allow-write ./local/.share         # read + write access
+allow-exec  ~/.local/bin/custom    # read + exec access
 ```
 
 **Directives:**
@@ -72,9 +106,9 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | Directive | Effect | Use case |
 |---|---|---|
 | `tool <name>` | Activates a bundled toolchain | Language runtimes, package managers |
-| `allow-read <path>` | Adds `file-read-data` | Config files, shared libraries |
-| `allow-write <path>` | Adds `file-read-data` + `file-write*` | Build caches, data directories |
-| `allow-exec <path>` | Adds `file-read-data` + `process-exec` | Custom binaries, scripts |
+| `allow-read <path>` | Adds `file-read-data` (subpath) | Config files, shared libraries, datasets |
+| `allow-write <path>` | Adds `file-read-data` + `file-write*` (subpath) | Build caches, data directories |
+| `allow-exec <path>` | Adds `file-read-data` + `process-exec` (subpath) | Custom binaries, scripts |
 
 **Path expansion:**
 
@@ -84,20 +118,20 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `./` | `$PROJECT_DIR` | `./local/.share` → `/path/to/project/local/.share` |
 | `/` | absolute | `/opt/custom` → `/opt/custom` |
 
-**Safety constraints** — the DSL is intentionally limited:
+**Safety constraints** — the DSL is intentionally narrow:
 
-- No `deny` — you can only widen access, never narrow it
-- No raw SBPL — all rules are generated from validated directives
-- No system paths — `/System`, `/usr`, `/bin`, `/Library`, `/opt/homebrew` are already in the base profile
-- No bare `~` — you must specify a subdirectory
-- No targeting `.xclaude` — the sandbox config file is protected
+- **No `deny`** — you can only widen access, never narrow it
+- **No raw SBPL** — every rule comes from a validated directive
+- **No system paths** — `/System`, `/usr`, `/bin`, `/sbin`, `/Library`, `/opt/homebrew` are already in the base profile and rejected by the validator
+- **No bare `~`, `~/`, `.`, or `./`** — you must specify a subdirectory
+- **No targeting `.xclaude`** — the sandbox config file is protected from being widened to writable or executable
 
 ### Available toolchains
 
-| Name | What it allows |
+| Name | What it grants |
 |---|---|
-| `node` | NVM (`~/.nvm`), npm/npx cache (`~/.npm`), corepack (`~/.cache/node`), pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config (`~/.config/pnpm`) |
-| `bun` | Bun runtime, install cache (`~/.bun`) |
+| `node` | NVM (`~/.nvm` read+exec), npm/npx cache (`~/.npm`), corepack (`~/.cache/node`), pnpm via corepack, global pnpm store (`~/.pnpm-store`), pnpm config (`~/.config/pnpm`) |
+| `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only — `uv tool install` symlinks are redirected to `~/.local/share/uv/bin/` via `UV_TOOL_BIN_DIR` to prevent binary overwrite attacks |
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
@@ -105,49 +139,69 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
-| `cmux` | cmux terminal multiplexer (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
+| `cmux` | cmux app bundle (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright`) |
-| `playwright-chromium` | Chromium macOS integration: locale, input methods, spelling, crash reporter. Requires `playwright` |
+| `playwright-chromium` | Chromium-specific macOS integration: locale, input methods, spelling, crash reporter. Requires `tool playwright` |
+| `chrome` | Google Chrome.app (read+exec), macOS integration paths, GoogleUpdater. Use with `--no-sandbox --user-data-dir=./profile` |
+
+Adding a new toolchain is a five-file change (SBPL fragment, sandbox test, README row, debug-sandbox skill row, CI job). See [`CLAUDE.md`](CLAUDE.md#adding-a-toolchain) for the full guide.
 
 ### User-level config
 
-For personal paths that apply to all projects (e.g., shell config symlink targets), create `~/.config/xclaude/config` using the same DSL:
+For personal paths that apply to all projects (e.g., shell config symlink targets, always-on tools), create `~/.config/xclaude/config` using the same DSL:
 
 ```sh
 # Personal tools available in all projects
-allow-read ~/Documents/GitHub/codewithcheese/macos-setup
-allow-read ~/.config/auto-chat
+tool cmux
+allow-read  ~/Documents/GitHub/codewithcheese/macos-setup
+allow-read  ~/.config/auto-chat
 allow-write ~/.config/auto-chat
 ```
 
-### Load order
+This layer is applied before the project config, is not trust-gated, and edits take effect on the next launch.
 
-```
-base.sb                          # core Claude needs (always)
-+ ~/.config/xclaude/config       # user-level (if exists)
-+ .xclaude                       # project-level (if exists, trust-gated)
-```
+## Bundled plugin
 
-All layers are additive. The base profile provides `(deny default)` and cannot be weakened by config files.
+xclaude ships with a Claude Code plugin that's loaded automatically — `xclaude` always launches `claude` with `--plugin-dir <xclaude-install-dir>`. You don't install or enable it separately.
 
-## Files
+It provides three things:
 
-| File | Purpose |
-|---|---|
-| `xclaude` | Executable entry point — sources library, runs sandboxed Claude |
-| `xclaude.lib.zsh` | Library: DSL parser, validator, SBPL generator, assembler, trust gate |
-| `base.sb` | Core Seatbelt/SBPL profile (deny default + Claude Code needs) |
-| `toolchains/*.sb` | Bundled toolchain SBPL fragments |
-| `toolchains/*.test.zsh` | Sandbox tests for each toolchain |
-| `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, etc.) |
-| `test_xclaude.bash` | DSL pipeline unit tests (bash, any platform) |
-| `test_sandbox.zsh` | Sandbox integration test runner (zsh, macOS only) |
-| `CLAUDE.md` | Development guide |
-| `DEBUGGING.md` | Guide for diagnosing sandbox issues |
+### Denial hook
 
-### Detecting the sandbox
+`plugin/hooks/sandbox-denial-hook.sh` is registered as a `PostToolUseFailure` hook. When a tool inside the sandbox fails with "Operation not permitted" or "Permission denied", the hook:
 
-xclaude sets the `XCLAUDE_ACTIVE=1` environment variable for all processes running inside the sandbox. CLI tools that should only run within the sandbox can check for it:
+1. Tails the sandbox denial log that `xclaude` streams from `/usr/bin/log` (kept outside the sandbox because `log` refuses to run inside one).
+2. Filters denials from the last 5 seconds matching `file-read-data`, `file-write`, `process-exec`, or `forbidden-exec`.
+3. Injects an `additionalContext` system reminder back to Claude with the specific denials and instructions to invoke `/debug-sandbox` rather than try to bypass the sandbox.
+
+The hook is gated on `XCLAUDE_ACTIVE=1`, so it's a no-op when running plain `claude`.
+
+### `/debug-sandbox` skill
+
+A configuration assistant that drafts `.xclaude` changes. It:
+
+- Considers alternatives to widening permissions first (local installs over global, project-local paths over `~/`)
+- Reads `~/.config/xclaude/config` so it doesn't suggest rules you already have
+- Identifies your tech stack and matches it to a bundled toolchain when possible
+- Picks the narrowest path and the minimum operation (`allow-read` over `allow-write` whenever the tool only needs to read)
+- Refuses to suggest workarounds that bypass the sandbox
+
+You can invoke it manually with `/debug-sandbox`, but typically the denial hook will direct Claude to invoke it automatically when something gets blocked.
+
+### `/reload-sandbox` skill — hot reload
+
+`.xclaude` is write-protected inside the sandbox (deny-after-allow), so configuration changes have to happen on disk before the sandbox restarts. The reload skill bridges this gap:
+
+1. The skill `touch`es a sentinel file (`$XCLAUDE_RELOAD_SENTINEL`) and tells you to `/exit`.
+2. `xclaude` runs in a `while true` loop. When `claude` exits, it checks for the sentinel.
+3. If the sentinel exists, xclaude re-runs the assembler, regenerates the profile, and starts a new `claude --continue` so your conversation resumes seamlessly.
+4. If the new `.xclaude` differs from the previously trusted version, the trust gate shows a diff and re-prompts before activating it.
+
+In practice the workflow is: a tool fails → hook injects denial context → Claude invokes `/debug-sandbox` → you approve the proposed `.xclaude` → Claude invokes `/reload-sandbox` → you `/exit` → sandbox restarts with the new rules → conversation continues.
+
+## Detecting the sandbox
+
+xclaude sets `XCLAUDE_ACTIVE=1` for every process inside the sandbox. CLI tools that should only run within the sandbox can check for it:
 
 ```bash
 # Shell
@@ -173,16 +227,50 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 }
 ```
 
-This variable is inherited by all child processes (bash, node, python, etc.) and is the stable, recommended way to detect the xclaude sandbox. Other `XCLAUDE_*` environment variables are internal and should not be relied upon.
+`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
 
-### SBPL parameter reference
+## Reference
 
-| Parameter | Set by | Example |
+### SBPL parameters
+
+`xclaude` passes these to `sandbox-exec` via `-D KEY=value`. Use `(param "NAME")` in SBPL — never hardcode paths.
+
+| Parameter | Resolves to |
+|---|---|
+| `HOME` | `/Users/<you>` |
+| `PROJECT_DIR` | Absolute path of the project (resolved with `readlink -f`) |
+| `TMPDIR` | `/private/var/folders/<...>/T/` |
+| `CACHE_DIR` | `/private/var/folders/<...>/C/` (sibling of TMPDIR — Spotlight/mds, keychain) |
+| `VOLATILE_DIR` | `/private/var/folders/<...>/X/` (sibling of TMPDIR — code-signing clones, Metal shader cache) |
+| `XCLAUDE_DIR` | Absolute path of the xclaude installation (used to allow the bundled plugin) |
+
+### Environment variables
+
+| Variable | Value | Stability |
 |---|---|---|
-| `HOME` | `xclaude` | `/Users/tom` |
-| `PROJECT_DIR` | `xclaude` (resolved via `readlink -f`) | `/Users/tom/myproject` |
-| `TMPDIR` | `xclaude` (resolved via `readlink -f`) | `/private/var/folders/.../T` |
-| `CACHE_DIR` | `xclaude` (derived from TMPDIR) | `/private/var/folders/.../C` |
+| `XCLAUDE_ACTIVE` | `1` | **Stable** — public API for sandbox detection |
+| `XCLAUDE_DENIAL_LOG` | Path to streaming denial log | Internal — do not rely on |
+| `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `xclaude` | Executable entry point — sources the library, runs `main` in a reload loop |
+| `xclaude.lib.zsh` | DSL parser, validator, SBPL generator, profile assembler, trust gate |
+| `base.sb` | Core SBPL profile (`deny default` + everything Claude Code itself needs) |
+| `toolchains/<name>.sb` | Bundled toolchain SBPL fragments |
+| `toolchains/<name>.test.zsh` | Sandbox tests for each toolchain |
+| `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, ...) |
+| `.claude-plugin/plugin.json` | Plugin manifest (loaded via `--plugin-dir`) |
+| `plugin/hooks/hooks.json` | Hook registration (`PostToolUseFailure`) |
+| `plugin/hooks/sandbox-denial-hook.sh` | Denial detection + context injection |
+| `plugin/skills/debug-sandbox/SKILL.md` | `/debug-sandbox` configuration assistant |
+| `plugin/skills/reload-sandbox/SKILL.md` | `/reload-sandbox` hot reload trigger |
+| `test_xclaude.bash` | DSL pipeline unit tests (any platform, bash 4+) |
+| `test_sandbox.zsh` | Sandbox integration test runner (macOS only) |
+| [`CLAUDE.md`](CLAUDE.md) | Development guide — architecture, adding toolchains, base profile changes |
+| [`DEBUGGING.md`](DEBUGGING.md) | Diagnosing sandbox issues, SBPL gotchas, denial categories |
 
 ## Testing
 
@@ -192,33 +280,34 @@ This variable is inherited by all child processes (bash, node, python, etc.) and
 bash test_xclaude.bash
 ```
 
-Tests parser, validator, generator, and assembler — no macOS or sandbox required.
+Tests parser, validator, generator, assembler, and trust gate — no macOS or sandbox required.
 
 **Sandbox integration tests** (macOS only):
 
 ```bash
-# All tests (base + all toolchains)
+# All tests (base + every discovered toolchain)
 zsh test_sandbox.zsh
 
-# Base profile only
+# Base profile only (no toolchains)
 zsh test_sandbox.zsh --toolchain none
 
 # Specific toolchain(s)
 zsh test_sandbox.zsh --toolchain node
 zsh test_sandbox.zsh --toolchain node,uv
 
-# Custom project config
-zsh test_sandbox.zsh --with-config my-project/.xclaude
+# With a custom project config
+zsh test_sandbox.zsh --with-config path/to/.xclaude
 ```
 
-Each toolchain is tested in its own parallel CI job with the tool installed. Tests verify:
-- Read/write/exec access to declared paths
-- Tool usability (real operations: npm install, cargo build, uv pip install, etc.)
-- Isolation (sensitive paths remain blocked)
-- Write protection (`.xclaude`, `.env`, `.git/hooks`)
-- Escape vectors (symlinks, path traversal, child processes)
+Each tested toolchain runs in its own parallel CI job with the tool installed at its canonical path. Tests verify:
 
-When a test fails unexpectedly, stderr and recent sandbox denial logs are displayed automatically.
+- Read/write/exec access to declared paths
+- Real tool operations (`npm install`, `cargo build`, `uv pip install`, etc.) — not just `--version`
+- Isolation (sensitive paths like `~/.ssh` remain blocked)
+- Write protection (`.xclaude`, `.env*`, `.git/hooks`)
+- Escape vectors (symlinks, path traversal, child processes, fd redirects)
+
+When a test fails unexpectedly, stderr and the recent sandbox denial log are displayed automatically.
 
 ## Known limitations
 
@@ -226,11 +315,11 @@ The sandbox enforces filesystem isolation only. These are accepted trade-offs an
 
 ### No network isolation
 
-All network access is allowed (`(allow network*)`). The sandboxed process can make arbitrary HTTP requests, which means data exfiltration of anything it *can* read (project files, clipboard, etc.) is possible via `curl` or any network client. SBPL may support network filtering by host/IP/port — this has not been explored yet.
+All network access is allowed (`(allow network*)`). The sandboxed process can make arbitrary HTTP requests, which means data exfiltration of anything it *can* read (project files, history, etc.) is possible via `curl` or any network client. SBPL may support filtering by host/IP/port — this hasn't been explored yet.
 
 ### Clipboard readable
 
-`pbpaste` (in `/usr/bin`) can read the system clipboard. If you've copied a password or secret, it's accessible inside the sandbox. There is no SBPL operation to block this — clipboard access goes through Mach IPC, which must be globally allowed for Claude to function.
+`pbpaste` (in `/usr/bin`) can read the system clipboard. If you've copied a password or secret, it's accessible inside the sandbox. There is no SBPL operation to block this — clipboard access goes through Mach IPC, which must be globally allowed for Claude Code to function.
 
 ### Keychain metadata exposed
 
@@ -238,11 +327,15 @@ All network access is allowed (`(allow network*)`). The sandboxed process can ma
 
 ### File metadata globally visible
 
-`file-read-metadata` is globally allowed (required for path resolution). This means `stat` and `test -e` work on any path — file existence, size, timestamps, and permissions are visible even for denied files. File *contents* are still blocked.
+`file-read-metadata` is globally allowed (required for path resolution). This means `stat` and `test -e` work on any path — file existence, size, timestamps, and permissions are visible even for denied files. File **contents** are still blocked.
+
+### JIT / dynamic code generation allowed
+
+`dynamic-code-generation` is permitted because Bun, V8, and WASM runtimes need it. This weakens in-process exploit hardening (an attacker can inject shellcode instead of needing ROP/JOP), but in our threat model — an AI agent that can already exec bash, node, and python — the marginal risk is low. JIT code is still subject to the syscall sandbox.
 
 ## Compatibility
 
 - macOS 14+ (Apple Silicon and Intel)
 - Claude Code 2.1.x+
-- Works with cmux wrapper
-- `sandbox-exec` is deprecated by Apple but still functional (Chromium uses the same approach)
+- Works alongside the cmux wrapper (`tool cmux`)
+- `sandbox-exec` is officially deprecated by Apple but remains functional and is used by Chromium with the same approach
