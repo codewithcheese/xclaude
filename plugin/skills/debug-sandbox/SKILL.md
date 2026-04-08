@@ -85,6 +85,20 @@ These cause errors — never generate rules that violate them:
 
 <workflow>
 
+## Phase 0 — Recognize non-permission failures first
+
+Some failures look like permission errors but are NOT xclaude permission issues. Check for these signatures BEFORE starting Phase 1, and short-circuit if matched.
+
+### Nested sandbox (`sandbox-exec: sandbox_apply: Operation not permitted`)
+
+If the failing command's stderr contains `sandbox_apply: Operation not permitted` (or `sandbox-exec: sandbox_apply`), the cause is **Claude Code's built-in sandbox trying to nest inside xclaude's sandbox**. The macOS kernel hard-blocks nested `sandbox-exec` regardless of profile content — there is no SBPL operation that can allow it. This is NOT a path-permission problem and CANNOT be fixed by widening `.xclaude`.
+
+**Do not proceed to Phase 1.** Tell the user:
+
+> Claude Code's built-in sandbox (`sandbox.enabled: true`) is incompatible with xclaude. Disable it by adding `"sandbox": { "enabled": false }` to `.claude/settings.local.json` (project, gitignored) or `~/.claude/settings.json` (user). Then restart the session. xclaude already provides filesystem isolation — Claude's built-in sandbox is redundant when running under xclaude.
+
+Stop. Do not draft `.xclaude` rules. Do not invoke any of the later phases for this signature.
+
 ## Phase 1 — Can this work without widening permissions?
 
 Before drafting any rules, think through alternatives:
