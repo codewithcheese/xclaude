@@ -22,6 +22,26 @@ if ! echo "$INPUT" | grep -qi "operation not permitted\|permission denied"; then
   exit 0
 fi
 
+# Special case: nested sandbox. Claude Code's built-in sandbox
+# (sandbox.enabled: true) tries to wrap each Bash call in its own
+# sandbox-exec, which the kernel rejects with EPERM via sandbox_apply
+# because the process is already inside a sandbox. The fix is to disable
+# Claude's built-in sandbox, NOT to widen xclaude's profile. Skip the
+# denial-log lookup (it will be empty — sandbox_apply is a syscall EPERM,
+# not a Seatbelt rule denial) and emit a targeted message that explicitly
+# steers the model away from /debug-sandbox.
+if echo "$INPUT" | grep -q "sandbox_apply"; then
+  cat <<'EOF'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUseFailure",
+    "additionalContext": "Nested sandbox detected. Claude Code's built-in sandbox (sandbox.enabled: true) cannot run inside the xclaude sandbox - the macOS kernel blocks nested sandbox-exec calls (sandbox_apply: Operation not permitted).\n\nINSTRUCTIONS (you MUST follow these):\n1. Tell the user to set \"sandbox\": { \"enabled\": false } in .claude/settings.local.json (project) or ~/.claude/settings.json (user), then restart the session.\n2. This is NOT an xclaude permission issue. Do NOT invoke /debug-sandbox. Do NOT propose .xclaude rules. Do NOT widen the sandbox profile.\n3. xclaude already provides filesystem isolation - Claude's built-in sandbox is redundant when running under xclaude."
+  }
+}
+EOF
+  exit 0
+fi
+
 # Read recent sandbox denials from the log file streamed by xclaude.
 # xclaude starts `log stream` outside the sandbox and writes to this file,
 # because /usr/bin/log refuses to run inside a sandbox.
