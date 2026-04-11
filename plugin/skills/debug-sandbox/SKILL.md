@@ -51,6 +51,7 @@ Comments start with `#`. Blank lines are ignored.
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens (`~/.cache/huggingface`) |
+| `seshi` | Claude Code session indexer hook. Venv (`~/.local/share/uv/tools/seshi`), uv-managed cpython (`~/.local/share/uv/python`), data dir (`~/.local/share/seshi` read+write). Pair with `tool huggingface` for embedding downloads |
 | `cmux` | cmux app bundle (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright` read+write+exec) |
 | `playwright-chromium` | Chromium-specific macOS paths: locale, input methods, spelling, crash reporter, branding. Requires `tool playwright` |

@@ -117,6 +117,7 @@ allow-exec ~/.local/bin/custom      # read + exec access
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |
+| `seshi` | Claude Code session indexer hook. Venv (`~/.local/share/uv/tools/seshi`), uv-managed cpython (`~/.local/share/uv/python`), and data dir (`~/.local/share/seshi`). Pair with `huggingface` for embedding model downloads. Does not grant `~/.local/bin` — use the uv-managed binary path directly |
 | `cmux` | cmux terminal multiplexer (`/Applications/cmux.app`), runtime state (`~/Library/Application Support/cmux`), caches (`~/Library/Caches/cmux`) |
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright`) |
 | `playwright-chromium` | Chromium macOS integration: locale, input methods, spelling, crash reporter. Requires `playwright` |

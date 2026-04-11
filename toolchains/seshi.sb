@@ -1,0 +1,45 @@
+;; seshi — Claude Code session indexer hook
+;;
+;; seshi-hook is a Python console script installed via
+;; `uv tool install seshi`. It runs on Claude Code's Stop and
+;; SessionStart hooks: reads session jsonl from ~/.claude/projects
+;; (already allowed by base), writes a redacted copy and a FAISS
+;; index to ~/.local/share/seshi, and uses HuggingFace embedding
+;; models cached at ~/.cache/huggingface. Pair with `tool huggingface`
+;; if the indexer needs to download or refresh embedding models.
+;;
+;; The entry point is ~/.local/bin/seshi-hook (symlink) →
+;; ~/.local/share/uv/tools/seshi/bin/seshi-hook (python shebang) →
+;; ~/.local/share/uv/tools/seshi/bin/python (symlink) →
+;; ~/.local/share/uv/python/cpython-<ver>/bin/python3.<x>. Seatbelt
+;; resolves symlinks before matching, so both the venv bin directory
+;; and the uv-managed cpython directory need exec + read rules.
+
+;; Exec — seshi venv bin (shebang target) and the cpython interpreter
+;; it resolves to under uv's python install root.
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.local/share/uv/tools/seshi/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/uv/python")))
+
+;; Read — seshi venv bin and lib (site-packages imports: click,
+;; pydantic, faiss, sentence-transformers, etc.) and the cpython
+;; stdlib that ships next to the interpreter.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/uv/tools/seshi"))
+  (subpath (string-append (param "HOME") "/.local/share/uv/python")))
+
+;; Write — venv lib only. Python writes __pycache__/*.pyc next to
+;; imported modules on first import; the venv's site-packages is
+;; the only place inside the venv that needs to be writable.
+;; Binaries under /bin stay read-only (no symlink overwrite vector).
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.local/share/uv/tools/seshi/lib")))
+
+;; Read+write — seshi data dir. Holds the redacted session store,
+;; FAISS index (`index/`, `index.write.lock`), embedding model cache
+;; (`models/`), status log (`hook-status.jsonl`), and hook.log. The
+;; hook creates this directory on first run via `mkdir(parents=True)`.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/seshi")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.local/share/seshi")))
