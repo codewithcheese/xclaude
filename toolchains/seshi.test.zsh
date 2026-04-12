@@ -45,6 +45,18 @@ expect_fail "blocked" tc_sandboxed touch "${HOME}/.local/share/uv/tools/seshi/bi
 t "seshi: uv python tree NOT writable"
 expect_fail "blocked" tc_sandboxed touch "${HOME}/.local/share/uv/python/attacker"
 
+# ── Usability ──
+__seshi_hook_bin="${HOME}/.local/bin/seshi-hook"
+[[ -x "$__seshi_hook_bin" ]] || __seshi_hook_bin="$(command -v seshi-hook 2>/dev/null || echo "")"
+
+if [[ -n "$__seshi_hook_bin" ]]; then
+  t "seshi: seshi-hook --help"
+  expect_success "runs" tc_sandboxed "$__seshi_hook_bin" --help
+else
+  t "seshi: seshi-hook not installed (skipped)"
+  expect_success "skip" true
+fi
+
 # ── Isolation ──
 t "seshi: ~/.ssh blocked"
 expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"
