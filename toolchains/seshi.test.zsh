@@ -57,6 +57,17 @@ else
   expect_success "skip" true
 fi
 
+__seshi_bin="${HOME}/.local/bin/seshi"
+[[ -x "$__seshi_bin" ]] || __seshi_bin="$(command -v seshi 2>/dev/null || echo "")"
+
+if [[ -n "$__seshi_bin" ]]; then
+  t "seshi: seshi --help"
+  expect_success "runs" tc_sandboxed "$__seshi_bin" --help
+else
+  t "seshi: seshi not installed (skipped)"
+  expect_success "skip" true
+fi
+
 # ── Isolation ──
 t "seshi: ~/.ssh blocked"
 expect_fail "blocked" tc_sandboxed cat "${HOME}/.ssh/known_hosts"
