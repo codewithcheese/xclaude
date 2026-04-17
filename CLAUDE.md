@@ -265,7 +265,10 @@ The validator in `xclaude.lib.zsh` enforces:
 - Only four verbs: `tool`, `allow-read`, `allow-write`, `allow-exec`
 - Paths must start with `~/`, `./`, or `/`
 - No bare `~` (too broad)
-- System paths rejected (already in base profile)
+- System-path handling is verb-specific:
+  - `allow-read` on `/System`, `/Library`, `/usr`, `/bin`, `/sbin`, `/opt/homebrew` — rejected, base already reads these
+  - `allow-write` on those same roots — rejected outright (system paths must not be writable from config)
+  - `allow-exec` — only `/bin/*`, `/usr/bin/*`, `/opt/homebrew/*` are rejected as redundant; `/Library/*`, `/usr/libexec/*`, `/usr/local/*`, `/sbin/*`, `/System/*` are allowed so tools like Temurin JDK can be granted exec
 - Paths targeting `.xclaude` as basename rejected (config is protected)
 - Tool names must match a file in `toolchains/`
 

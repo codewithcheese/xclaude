@@ -74,11 +74,34 @@ __xclaude_validate() {
           echo "xclaude: invalid path '${arg}' — must start with ~/, ./, or /" >&2
           return 1
         fi
-        # Block system paths already in base profile
-        case "$arg" in
-          /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
-            echo "xclaude: system path '${arg}' is already allowed by base profile" >&2
-            return 1
+        # System-path restrictions are verb-specific:
+        #   read  — all system roots already covered by base
+        #   write — system paths must never be writable from config
+        #   exec  — only the exec-covered base subpaths are redundant
+        case "$verb" in
+          allow-read)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                echo "xclaude: system path '${arg}' is already readable via base profile" >&2
+                return 1
+                ;;
+            esac
+            ;;
+          allow-write)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                echo "xclaude: system path '${arg}' cannot be made writable from project config" >&2
+                return 1
+                ;;
+            esac
+            ;;
+          allow-exec)
+            case "$arg" in
+              /bin/*|/usr/bin/*|/opt/homebrew/*)
+                echo "xclaude: exec path '${arg}' is already allowed by base profile" >&2
+                return 1
+                ;;
+            esac
             ;;
         esac
         local basename="${arg##*/}"
@@ -200,10 +223,30 @@ __xcodex_validate() {
           echo "xcodex: invalid path '${arg}' — must start with ~/, ./, or /" >&2
           return 1
         fi
-        case "$arg" in
-          /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
-            echo "xcodex: system path '${arg}' is already allowed by base profile" >&2
-            return 1
+        case "$verb" in
+          allow-read)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                echo "xcodex: system path '${arg}' is already readable via base profile" >&2
+                return 1
+                ;;
+            esac
+            ;;
+          allow-write)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                echo "xcodex: system path '${arg}' cannot be made writable from project config" >&2
+                return 1
+                ;;
+            esac
+            ;;
+          allow-exec)
+            case "$arg" in
+              /bin/*|/usr/bin/*|/opt/homebrew/*)
+                echo "xcodex: exec path '${arg}' is already allowed by base profile" >&2
+                return 1
+                ;;
+            esac
             ;;
         esac
         local basename="${arg##*/}"
@@ -248,6 +291,150 @@ __xcodex_assemble() {
   fi
 
   echo "$assembled"
+}
+
+# ── Trust-gate color helpers (duplicate of xsandbox.lib.zsh) ─
+__xsandbox_color_enabled() {
+  case "${XSANDBOX_COLOR:-auto}" in
+    always) return 0 ;;
+    never)  return 1 ;;
+    auto)
+      [[ -n "${NO_COLOR:-}" ]] && return 1
+      [[ -t 2 ]] && return 0
+      return 1
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+__xsandbox_colorize_diff() {
+  if ! __xsandbox_color_enabled; then
+    cat
+    return
+  fi
+  local R=$'\e[31m' G=$'\e[32m' C=$'\e[36m' Y=$'\e[33m' M=$'\e[35m' D=$'\e[2m' Z=$'\e[0m' B=$'\e[1m'
+  awk -v r="$R" -v g="$G" -v c="$C" -v y="$Y" -v m="$M" -v d="$D" -v z="$Z" -v b="$B" '
+    /^(--- |\+\+\+ )/ { print c b $0 z; next }
+    /^@@/             { print c $0 z;   next }
+    /^[-+](tool|allow-read|allow-write|allow-exec)[[:space:]]/ {
+      polarity = substr($0, 1, 1)
+      pc = (polarity == "+") ? g : r
+      body = substr($0, 2)
+      match(body, /[[:space:]]/)
+      if (RSTART > 0) {
+        verb = substr(body, 1, RSTART - 1)
+        rest = substr(body, RSTART)
+      } else {
+        verb = body
+        rest = ""
+      }
+      vc = ""
+      if      (verb == "tool")        vc = c
+      else if (verb == "allow-read")  vc = g
+      else if (verb == "allow-write") vc = y
+      else if (verb == "allow-exec")  vc = m
+      printf "%s%s%s%s%s%s%s%s%s%s\n", pc, polarity, z, vc, b, verb, z, pc, rest, z
+      next
+    }
+    /^-/              { print r $0 z;   next }
+    /^\+/             { print g $0 z;   next }
+                      { print d $0 z }
+  '
+}
+
+__xsandbox_summarize_diff() {
+  local old="$1" new="$2"
+  local tool_a=0 read_a=0 write_a=0 exec_a=0
+  local tool_r=0 read_r=0 write_r=0 exec_r=0
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      '+tool '*)        tool_a=$((tool_a + 1)) ;;
+      '+allow-read '*)  read_a=$((read_a + 1)) ;;
+      '+allow-write '*) write_a=$((write_a + 1)) ;;
+      '+allow-exec '*)  exec_a=$((exec_a + 1)) ;;
+      '-tool '*)        tool_r=$((tool_r + 1)) ;;
+      '-allow-read '*)  read_r=$((read_r + 1)) ;;
+      '-allow-write '*) write_r=$((write_r + 1)) ;;
+      '-allow-exec '*)  exec_r=$((exec_r + 1)) ;;
+    esac
+  done < <(diff -u "$old" "$new" 2>/dev/null || true)
+
+  if (( tool_a + read_a + write_a + exec_a + tool_r + read_r + write_r + exec_r == 0 )); then
+    return 0
+  fi
+
+  local C="" G="" Y="" M="" R="" Z="" B=""
+  if __xsandbox_color_enabled; then
+    C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; M=$'\e[35m'; R=$'\e[31m'; Z=$'\e[0m'; B=$'\e[1m'
+  fi
+  local segs=()
+  (( exec_a > 0 ))  && segs+=("${G}+${exec_a}${Z} ${M}${B}exec${Z}")
+  (( write_a > 0 )) && segs+=("${G}+${write_a}${Z} ${Y}${B}write${Z}")
+  (( tool_a > 0 ))  && segs+=("${G}+${tool_a}${Z} ${C}${B}tool${Z}")
+  (( read_a > 0 ))  && segs+=("${G}+${read_a}${Z} ${G}${B}read${Z}")
+  (( exec_r > 0 ))  && segs+=("${R}-${exec_r}${Z} ${M}${B}exec${Z}")
+  (( write_r > 0 )) && segs+=("${R}-${write_r}${Z} ${Y}${B}write${Z}")
+  (( tool_r > 0 ))  && segs+=("${R}-${tool_r}${Z} ${C}${B}tool${Z}")
+  (( read_r > 0 ))  && segs+=("${R}-${read_r}${Z} ${G}${B}read${Z}")
+
+  local out="" s first=1
+  for s in "${segs[@]}"; do
+    if (( first )); then out="$s"; first=0; else out+="  $s"; fi
+  done
+  printf '  %s\n' "$out"
+}
+
+__xsandbox_summarize_new() {
+  local file="$1"
+  local tool_n=0 read_n=0 write_n=0 exec_n=0
+  local line stripped
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    stripped="${line%%#*}"
+    [[ -z "$stripped" ]] && continue
+    case "$stripped" in
+      'tool '*)        tool_n=$((tool_n + 1)) ;;
+      'allow-read '*)  read_n=$((read_n + 1)) ;;
+      'allow-write '*) write_n=$((write_n + 1)) ;;
+      'allow-exec '*)  exec_n=$((exec_n + 1)) ;;
+    esac
+  done < "$file"
+
+  if (( tool_n + read_n + write_n + exec_n == 0 )); then
+    return 0
+  fi
+
+  local C="" G="" Y="" M="" Z="" B=""
+  if __xsandbox_color_enabled; then
+    C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; M=$'\e[35m'; Z=$'\e[0m'; B=$'\e[1m'
+  fi
+  local segs=()
+  (( exec_n > 0 ))  && segs+=("${exec_n} ${M}${B}exec${Z}")
+  (( write_n > 0 )) && segs+=("${write_n} ${Y}${B}write${Z}")
+  (( tool_n > 0 ))  && segs+=("${tool_n} ${C}${B}tool${Z}")
+  (( read_n > 0 )) && segs+=("${read_n} ${G}${B}read${Z}")
+
+  local out="" s first=1
+  for s in "${segs[@]}"; do
+    if (( first )); then out="$s"; first=0; else out+="  $s"; fi
+  done
+  printf '  %s\n' "$out"
+}
+
+__xsandbox_colorize_new() {
+  if ! __xsandbox_color_enabled; then
+    cat
+    return
+  fi
+  local C=$'\e[36m' G=$'\e[32m' Y=$'\e[33m' M=$'\e[35m' D=$'\e[2m' Z=$'\e[0m' B=$'\e[1m'
+  awk -v c="$C" -v g="$G" -v y="$Y" -v m="$M" -v d="$D" -v z="$Z" -v b="$B" '
+    /^[[:space:]]*#/                { print d $0 z; next }
+    /^[[:space:]]*tool[[:space:]]/  { sub(/tool/,       c b "&" z); print; next }
+    /^[[:space:]]*allow-read[[:space:]]/  { sub(/allow-read/,  g b "&" z); print; next }
+    /^[[:space:]]*allow-write[[:space:]]/ { sub(/allow-write/, y b "&" z); print; next }
+    /^[[:space:]]*allow-exec[[:space:]]/  { sub(/allow-exec/,  m b "&" z); print; next }
+                                    { print }
+  '
 }
 
 # ── Test framework ────────────────────────────────────────────
@@ -408,11 +595,40 @@ assert_fails "echo 'allow-read /usr/local/lib' | __xclaude_validate"
 t "rejects /Library paths"
 assert_fails "echo 'allow-read /Library/Frameworks' | __xclaude_validate"
 
-t "rejects /bin paths"
+t "rejects allow-exec on /bin (base-covered)"
 assert_fails "echo 'allow-exec /bin/sh' | __xclaude_validate"
+
+t "rejects allow-exec on /usr/bin (base-covered)"
+assert_fails "echo 'allow-exec /usr/bin/python3' | __xclaude_validate"
+
+t "rejects allow-exec on /opt/homebrew (base-covered)"
+assert_fails "echo 'allow-exec /opt/homebrew/bin/node' | __xclaude_validate"
 
 t "rejects /opt/homebrew paths"
 assert_fails "echo 'allow-read /opt/homebrew/lib' | __xclaude_validate"
+
+# Paths the base profile can read but cannot exec — valid allow-exec targets
+t "accepts allow-exec on /Library (not base-execed)"
+assert_succeeds "echo 'allow-exec /Library/Java/JavaVirtualMachines/temurin-26.jdk/Contents/Home/bin/java' | __xclaude_validate"
+
+t "accepts allow-exec on /usr/libexec (not base-execed)"
+assert_succeeds "echo 'allow-exec /usr/libexec/java_home' | __xclaude_validate"
+
+t "accepts allow-exec on /usr/local (not base-execed)"
+assert_succeeds "echo 'allow-exec /usr/local/bin/terraform' | __xclaude_validate"
+
+t "accepts allow-exec on /sbin (not base-execed)"
+assert_succeeds "echo 'allow-exec /sbin/ping' | __xclaude_validate"
+
+# Writes to system paths must always be refused, even where reads are already covered
+t "rejects allow-write on /Library"
+assert_fails "echo 'allow-write /Library/Foo' | __xclaude_validate"
+
+t "rejects allow-write on /usr/local"
+assert_fails "echo 'allow-write /usr/local/bin' | __xclaude_validate"
+
+t "rejects allow-write on /opt/homebrew"
+assert_fails "echo 'allow-write /opt/homebrew/var' | __xclaude_validate"
 
 t "rejects allow-write targeting .xclaude"
 assert_fails "echo 'allow-write ./.xclaude' | __xclaude_validate"
@@ -637,6 +853,176 @@ t "config with only comments and blanks"
 f="$(fixture edge1 $'# just a comment\n\n# another comment\n')"
 out="$(__xclaude_parse "$f")"
 assert_eq "" "$out"
+
+# ── Trust-gate color ──────────────────────────────────────────
+echo "=== Trust gate color ==="
+
+strip_ansi() {
+  # POSIX-esque CSI stripper. Matches ESC [ <params> m.
+  sed $'s/\x1b\\[[0-9;]*m//g'
+}
+
+# Sample unified diff input used across multiple tests
+__sample_diff=$'--- trusted\n+++ current\n@@ -1,3 +1,4 @@\n tool node\n-allow-read ~/.config/old\n+allow-write ~/.config/new\n+allow-exec ~/.local/bin/x\n context-line\n'
+
+t "XSANDBOX_COLOR=never: no ANSI in diff"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=never __xsandbox_colorize_diff)
+assert_eq "$__sample_diff" "${out}"$'\n'
+assert_not_contains $'\e[' "$out"
+
+t "NO_COLOR=1 (auto mode): no ANSI in diff"
+out=$(printf '%s' "$__sample_diff" | NO_COLOR=1 XSANDBOX_COLOR=auto __xsandbox_colorize_diff)
+assert_not_contains $'\e[' "$out"
+
+t "XSANDBOX_COLOR=always: removed line has red polarity + green bold verb (read)"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[31m-\e[0m\e[32m\e[1mallow-read\e[0m\e[31m ~/.config/old\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: added allow-write has green polarity + yellow bold verb"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[32m+\e[0m\e[33m\e[1mallow-write\e[0m\e[32m ~/.config/new\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: added allow-exec has green polarity + magenta bold verb"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[32m+\e[0m\e[35m\e[1mallow-exec\e[0m\e[32m ~/.local/bin/x\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: context tool line stays dim (no verb overlay)"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[2m tool node\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: added tool has cyan bold verb overlay"
+diff_with_tool=$'--- trusted\n+++ current\n@@ -1,1 +1,2 @@\n tool node\n+tool uv\n'
+out=$(printf '%s' "$diff_with_tool" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[32m+\e[0m\e[36m\e[1mtool\e[0m\e[32m uv\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: added comment line has green polarity but no verb overlay"
+diff_with_comment=$'--- trusted\n+++ current\n@@ -1,1 +1,2 @@\n tool node\n+# a new comment\n'
+out=$(printf '%s' "$diff_with_comment" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[32m+# a new comment\e[0m' "$out"
+assert_not_contains $'\e[1m+# a new comment' "$out"
+
+t "XSANDBOX_COLOR=always: cyan on +++/--- file headers"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[36m\e[1m--- trusted\e[0m' "$out"
+assert_contains $'\e[36m\e[1m+++ current\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: cyan on @@ hunk header"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[36m@@ -1,3 +1,4 @@\e[0m' "$out"
+
+t "XSANDBOX_COLOR=always: context line is dim"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+assert_contains $'\e[2m tool node\e[0m' "$out"
+
+t "colorized diff strips to original content"
+out=$(printf '%s' "$__sample_diff" | XSANDBOX_COLOR=always __xsandbox_colorize_diff)
+stripped=$(printf '%s' "$out" | strip_ansi)
+# Command substitution strips a trailing newline; normalize both sides
+assert_eq "${__sample_diff%$'\n'}" "$stripped"
+
+# ── New-config colorizer tests ────────────────────────────────
+__sample_new=$'# a comment\ntool node\nallow-read ~/.config/foo\nallow-write ~/data\nallow-exec ~/.local/bin/x\n'
+
+t "new-config: XSANDBOX_COLOR=never pass-through"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=never __xsandbox_colorize_new)
+assert_eq "$__sample_new" "${out}"$'\n'
+
+t "new-config: tool verb cyan+bold"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+assert_contains $'\e[36m\e[1mtool\e[0m node' "$out"
+
+t "new-config: allow-read verb green+bold"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+assert_contains $'\e[32m\e[1mallow-read\e[0m ~/.config/foo' "$out"
+
+t "new-config: allow-write verb yellow+bold"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+assert_contains $'\e[33m\e[1mallow-write\e[0m ~/data' "$out"
+
+t "new-config: allow-exec verb magenta+bold"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+assert_contains $'\e[35m\e[1mallow-exec\e[0m ~/.local/bin/x' "$out"
+
+t "new-config: comment is dim"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+assert_contains $'\e[2m# a comment\e[0m' "$out"
+
+t "new-config: content preserved after ANSI strip"
+out=$(printf '%s' "$__sample_new" | XSANDBOX_COLOR=always __xsandbox_colorize_new)
+stripped=$(printf '%s' "$out" | strip_ansi)
+assert_eq "${__sample_new%$'\n'}" "$stripped"
+
+# ── Summary-line tests ────────────────────────────────────────
+echo "=== Trust gate summary ==="
+
+__write_fixture() {
+  local path="$1" content="$2"
+  printf '%s' "$content" > "$path"
+}
+
+t "summarize_diff: identical files produce no output"
+fa="$(fixture sd1a $'tool node\n')"
+fb="$(fixture sd1b $'tool node\n')"
+out=$(XSANDBOX_COLOR=never __xsandbox_summarize_diff "$fa" "$fb")
+assert_eq "" "$out"
+
+t "summarize_diff: uncolored counts match verb categories"
+fa="$(fixture sd2a $'tool node\nallow-read ~/.config/old\n')"
+fb="$(fixture sd2b $'tool node\nallow-read ~/.config/new\nallow-write ~/data\nallow-exec ~/.local/bin/x\n')"
+out=$(XSANDBOX_COLOR=never __xsandbox_summarize_diff "$fa" "$fb")
+# +1 exec, +1 write, +1 read, -1 read (tool is unchanged)
+assert_contains "+1 exec" "$out"
+assert_contains "+1 write" "$out"
+assert_contains "+1 read" "$out"
+assert_contains "-1 read" "$out"
+assert_not_contains "tool" "$out"
+
+t "summarize_diff: ordering is exec, write, tool, read (additions before removals)"
+fa="$(fixture sd3a $'tool node\nallow-read ~/r\nallow-write ~/w\nallow-exec ~/x\n')"
+fb="$(fixture sd3b $'tool uv\nallow-read ~/r2\nallow-write ~/w2\nallow-exec ~/x2\n')"
+out=$(XSANDBOX_COLOR=never __xsandbox_summarize_diff "$fa" "$fb")
+# All four are +1/-1 each. Check that exec appears before write, write before tool, tool before read, + before -
+exec_pos=$(echo "$out" | awk '{ print index($0, "+1 exec") }')
+write_pos=$(echo "$out" | awk '{ print index($0, "+1 write") }')
+tool_pos=$(echo "$out" | awk '{ print index($0, "+1 tool") }')
+read_pos=$(echo "$out" | awk '{ print index($0, "+1 read") }')
+minus_exec_pos=$(echo "$out" | awk '{ print index($0, "-1 exec") }')
+if (( exec_pos > 0 && exec_pos < write_pos && write_pos < tool_pos && tool_pos < read_pos && read_pos < minus_exec_pos )); then
+  __test_pass=$((__test_pass + 1))
+else
+  __test_fail=$((__test_fail + 1))
+  echo "FAIL: ${__test_name}" >&2
+  echo "  positions: +exec=$exec_pos +write=$write_pos +tool=$tool_pos +read=$read_pos -exec=$minus_exec_pos" >&2
+  echo "  out: $out" >&2
+fi
+
+t "summarize_diff: colored summary includes green +, red -, magenta exec, yellow write"
+fa="$(fixture sd4a $'allow-read ~/old\n')"
+fb="$(fixture sd4b $'allow-write ~/new\nallow-exec ~/x\n')"
+out=$(XSANDBOX_COLOR=always __xsandbox_summarize_diff "$fa" "$fb")
+assert_contains $'\e[32m+1\e[0m' "$out"     # green +
+assert_contains $'\e[31m-1\e[0m' "$out"     # red -
+assert_contains $'\e[35m\e[1mexec\e[0m' "$out"   # magenta exec
+assert_contains $'\e[33m\e[1mwrite\e[0m' "$out"  # yellow write
+
+t "summarize_new: empty/commented file produces no output"
+fa="$(fixture sn1 $'# just a comment\n\n')"
+out=$(XSANDBOX_COLOR=never __xsandbox_summarize_new "$fa")
+assert_eq "" "$out"
+
+t "summarize_new: counts verbs (comments ignored)"
+fa="$(fixture sn2 $'# header\ntool node\ntool uv\nallow-read ~/a\nallow-write ~/b\nallow-exec ~/c\nallow-exec ~/d\n')"
+out=$(XSANDBOX_COLOR=never __xsandbox_summarize_new "$fa")
+assert_contains "2 exec" "$out"
+assert_contains "1 write" "$out"
+assert_contains "2 tool" "$out"
+assert_contains "1 read" "$out"
+
+t "summarize_new: colored segments include severity palette"
+fa="$(fixture sn3 $'tool node\nallow-exec ~/x\n')"
+out=$(XSANDBOX_COLOR=always __xsandbox_summarize_new "$fa")
+assert_contains $'\e[36m\e[1mtool\e[0m' "$out"
+assert_contains $'\e[35m\e[1mexec\e[0m' "$out"
 
 # ── Results ───────────────────────────────────────────────────
 echo ""

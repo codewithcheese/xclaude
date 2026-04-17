@@ -80,7 +80,10 @@ These cause errors — never generate rules that violate them:
 - Bare `~` or `~/` — too broad, must specify a subdirectory
 - Bare `./` or `.` — too broad, must specify a subdirectory
 - Paths not starting with `~/`, `./`, or `/`
-- System paths: `/System/*`, `/Library/*`, `/usr/*`, `/bin/*`, `/sbin/*`, `/opt/homebrew/*` — already in base
+- System paths are verb-sensitive:
+  - `allow-read` on `/System/*`, `/Library/*`, `/usr/*`, `/bin/*`, `/sbin/*`, `/opt/homebrew/*` — rejected, base already reads them
+  - `allow-write` on those same roots — rejected (system paths must not be writable)
+  - `allow-exec` — only `/bin/*`, `/usr/bin/*`, `/opt/homebrew/*` are rejected as base-covered; `allow-exec /Library/Java/...`, `/usr/libexec/*`, `/usr/local/*`, `/sbin/*` are accepted for tools the base doesn't exec
 - Targeting `.xclaude` as the basename — config is protected
 - Tool names that don't match an available toolchain
 

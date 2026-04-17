@@ -4,9 +4,12 @@ on:
     branches: [main]
     paths:
       - 'base.sb'
+      - 'base-common.sb'
       - 'xclaude'
       - 'xclaude.lib.zsh'
+      - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
+      - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
@@ -14,9 +17,12 @@ on:
     branches: [main]
     paths:
       - 'base.sb'
+      - 'base-common.sb'
       - 'xclaude'
       - 'xclaude.lib.zsh'
+      - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
+      - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
@@ -28,6 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash test_xclaude.bash
+
+  trust-gate:
+    name: Trust gate integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y zsh
+      - run: zsh test_trust_gate.zsh
 
   sandbox-base:
     name: "Sandbox: base profile"

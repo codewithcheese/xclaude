@@ -97,10 +97,30 @@ __xsandbox_validate() {
           __xsandbox_log "invalid path '${arg}' — must start with ~/, ./, or /"
           return 1
         fi
-        case "$arg" in
-          /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
-            __xsandbox_log "system path '${arg}' is already allowed by base profile"
-            return 1
+        case "$verb" in
+          allow-read)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                __xsandbox_log "system path '${arg}' is already readable via base profile"
+                return 1
+                ;;
+            esac
+            ;;
+          allow-write)
+            case "$arg" in
+              /System/*|/Library/*|/usr/*|/bin/*|/sbin/*|/opt/homebrew/*)
+                __xsandbox_log "system path '${arg}' cannot be made writable from project config"
+                return 1
+                ;;
+            esac
+            ;;
+          allow-exec)
+            case "$arg" in
+              /bin/*|/usr/bin/*|/opt/homebrew/*)
+                __xsandbox_log "exec path '${arg}' is already allowed by base profile"
+                return 1
+                ;;
+            esac
             ;;
         esac
         local basename="${arg##*/}"
@@ -197,6 +217,158 @@ __xsandbox_trust() {
   cp "$file" "${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$file")"
 }
 
+__xsandbox_color_enabled() {
+  case "${XSANDBOX_COLOR:-auto}" in
+    always) return 0 ;;
+    never)  return 1 ;;
+    auto)
+      [[ -n "${NO_COLOR:-}" ]] && return 1
+      [[ -t 2 ]] && return 0
+      return 1
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+__xsandbox_colorize_diff() {
+  if ! __xsandbox_color_enabled; then
+    cat
+    return
+  fi
+  local R=$'\e[31m' G=$'\e[32m' C=$'\e[36m' Y=$'\e[33m' M=$'\e[35m' D=$'\e[2m' Z=$'\e[0m' B=$'\e[1m'
+  # On changed (+/-) lines with a known verb, the polarity color wraps the
+  # whole line and the verb token is overlaid with its severity color in
+  # bold. Verb palette: tool=cyan, allow-read=green, allow-write=yellow,
+  # allow-exec=magenta. Severity reads at a glance inside either polarity.
+  awk -v r="$R" -v g="$G" -v c="$C" -v y="$Y" -v m="$M" -v d="$D" -v z="$Z" -v b="$B" '
+    /^(--- |\+\+\+ )/ { print c b $0 z; next }
+    /^@@/             { print c $0 z;   next }
+    /^[-+](tool|allow-read|allow-write|allow-exec)[[:space:]]/ {
+      polarity = substr($0, 1, 1)
+      pc = (polarity == "+") ? g : r
+      body = substr($0, 2)
+      match(body, /[[:space:]]/)
+      if (RSTART > 0) {
+        verb = substr(body, 1, RSTART - 1)
+        rest = substr(body, RSTART)
+      } else {
+        verb = body
+        rest = ""
+      }
+      vc = ""
+      if      (verb == "tool")        vc = c
+      else if (verb == "allow-read")  vc = g
+      else if (verb == "allow-write") vc = y
+      else if (verb == "allow-exec")  vc = m
+      printf "%s%s%s%s%s%s%s%s%s%s\n", pc, polarity, z, vc, b, verb, z, pc, rest, z
+      next
+    }
+    /^-/              { print r $0 z;   next }
+    /^\+/             { print g $0 z;   next }
+                      { print d $0 z }
+  '
+}
+
+__xsandbox_colorize_new() {
+  if ! __xsandbox_color_enabled; then
+    cat
+    return
+  fi
+  local C=$'\e[36m' G=$'\e[32m' Y=$'\e[33m' M=$'\e[35m' D=$'\e[2m' Z=$'\e[0m' B=$'\e[1m'
+  awk -v c="$C" -v g="$G" -v y="$Y" -v m="$M" -v d="$D" -v z="$Z" -v b="$B" '
+    /^[[:space:]]*#/                { print d $0 z; next }
+    /^[[:space:]]*tool[[:space:]]/  { sub(/tool/,       c b "&" z); print; next }
+    /^[[:space:]]*allow-read[[:space:]]/  { sub(/allow-read/,  g b "&" z); print; next }
+    /^[[:space:]]*allow-write[[:space:]]/ { sub(/allow-write/, y b "&" z); print; next }
+    /^[[:space:]]*allow-exec[[:space:]]/  { sub(/allow-exec/,  m b "&" z); print; next }
+                                    { print }
+  '
+}
+
+__xsandbox_summarize_diff() {
+  # One-line verb-grouped summary of a diff between two files.
+  # Format: "  +1 exec  +1 write  +1 tool  -1 read" — zero-count verbs omitted.
+  # Writes nothing if both files are identical.
+  local old="$1" new="$2"
+  local tool_a=0 read_a=0 write_a=0 exec_a=0
+  local tool_r=0 read_r=0 write_r=0 exec_r=0
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      '+tool '*)        tool_a=$((tool_a + 1)) ;;
+      '+allow-read '*)  read_a=$((read_a + 1)) ;;
+      '+allow-write '*) write_a=$((write_a + 1)) ;;
+      '+allow-exec '*)  exec_a=$((exec_a + 1)) ;;
+      '-tool '*)        tool_r=$((tool_r + 1)) ;;
+      '-allow-read '*)  read_r=$((read_r + 1)) ;;
+      '-allow-write '*) write_r=$((write_r + 1)) ;;
+      '-allow-exec '*)  exec_r=$((exec_r + 1)) ;;
+    esac
+  done < <(diff -u "$old" "$new" 2>/dev/null || true)
+
+  if (( tool_a + read_a + write_a + exec_a + tool_r + read_r + write_r + exec_r == 0 )); then
+    return 0
+  fi
+
+  local C="" G="" Y="" M="" R="" Z="" B=""
+  if __xsandbox_color_enabled; then
+    C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; M=$'\e[35m'; R=$'\e[31m'; Z=$'\e[0m'; B=$'\e[1m'
+  fi
+  # Order: exec, write, tool, read (most-to-least capable), additions first.
+  local segs=()
+  (( exec_a > 0 ))  && segs+=("${G}+${exec_a}${Z} ${M}${B}exec${Z}")
+  (( write_a > 0 )) && segs+=("${G}+${write_a}${Z} ${Y}${B}write${Z}")
+  (( tool_a > 0 ))  && segs+=("${G}+${tool_a}${Z} ${C}${B}tool${Z}")
+  (( read_a > 0 ))  && segs+=("${G}+${read_a}${Z} ${G}${B}read${Z}")
+  (( exec_r > 0 ))  && segs+=("${R}-${exec_r}${Z} ${M}${B}exec${Z}")
+  (( write_r > 0 )) && segs+=("${R}-${write_r}${Z} ${Y}${B}write${Z}")
+  (( tool_r > 0 ))  && segs+=("${R}-${tool_r}${Z} ${C}${B}tool${Z}")
+  (( read_r > 0 ))  && segs+=("${R}-${read_r}${Z} ${G}${B}read${Z}")
+
+  local out="" s first=1
+  for s in "${segs[@]}"; do
+    if (( first )); then out="$s"; first=0; else out+="  $s"; fi
+  done
+  printf '  %s\n' "$out"
+}
+
+__xsandbox_summarize_new() {
+  # One-line verb-grouped summary of a single config file (no signs).
+  local file="$1"
+  local tool_n=0 read_n=0 write_n=0 exec_n=0
+  local line stripped
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    stripped="${line%%#*}"
+    [[ -z "$stripped" ]] && continue
+    case "$stripped" in
+      'tool '*)        tool_n=$((tool_n + 1)) ;;
+      'allow-read '*)  read_n=$((read_n + 1)) ;;
+      'allow-write '*) write_n=$((write_n + 1)) ;;
+      'allow-exec '*)  exec_n=$((exec_n + 1)) ;;
+    esac
+  done < "$file"
+
+  if (( tool_n + read_n + write_n + exec_n == 0 )); then
+    return 0
+  fi
+
+  local C="" G="" Y="" M="" Z="" B=""
+  if __xsandbox_color_enabled; then
+    C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; M=$'\e[35m'; Z=$'\e[0m'; B=$'\e[1m'
+  fi
+  local segs=()
+  (( exec_n > 0 ))  && segs+=("${exec_n} ${M}${B}exec${Z}")
+  (( write_n > 0 )) && segs+=("${write_n} ${Y}${B}write${Z}")
+  (( tool_n > 0 ))  && segs+=("${tool_n} ${C}${B}tool${Z}")
+  (( read_n > 0 ))  && segs+=("${read_n} ${G}${B}read${Z}")
+
+  local out="" s first=1
+  for s in "${segs[@]}"; do
+    if (( first )); then out="$s"; first=0; else out+="  $s"; fi
+  done
+  printf '  %s\n' "$out"
+}
+
 __xsandbox_check_trust() {
   __xsandbox_sync_defaults
   local file="$1"
@@ -207,17 +379,25 @@ __xsandbox_check_trust() {
 
   if __xsandbox_was_previously_trusted "$file" && [[ -f "$trusted_copy" ]]; then
     __xsandbox_log "config changed: ${file}"
+    __xsandbox_summarize_diff "$trusted_copy" "$file" >&2
     echo "─────────────────────────────────────" >&2
-    diff -u "$trusted_copy" "$file" --label "trusted" --label "current" >&2 || true
+    diff -u "$trusted_copy" "$file" --label "trusted" --label "current" \
+      | __xsandbox_colorize_diff >&2 || true
     echo "─────────────────────────────────────" >&2
   else
     __xsandbox_log "new config: ${file}"
+    __xsandbox_summarize_new "$file" >&2
     echo "─────────────────────────────────────" >&2
-    cat "$file" >&2
+    __xsandbox_colorize_new < "$file" >&2
     echo "─────────────────────────────────────" >&2
   fi
 
-  echo -n "${__xsandbox_name}: allow this config? [y/N] " >&2
+  local PB="" PZ=""
+  if __xsandbox_color_enabled; then
+    PB=$'\e[1m'
+    PZ=$'\e[0m'
+  fi
+  echo -n "${PB}${__xsandbox_name}: allow this config? [y/N]${PZ} " >&2
   local reply
   read -r reply
   case "$reply" in
