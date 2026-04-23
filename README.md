@@ -66,6 +66,8 @@ If your project needs additional access (a runtime, a custom binary, a config fi
 base.sb                       # core profile (always applied)
 + ~/.config/xclaude/config    # personal rules for all projects (optional)
 + ./.xclaude                  # project-specific rules (optional, trust-gated)
+     └─ each `pack <name>` expands ~/.config/xclaude/packs/<name>
+        (trust-gated per project, per hash)
         │
         ▼
 sandbox-exec -f <assembled>   --   claude --dangerously-skip-permissions --plugin-dir <xclaude>
@@ -85,12 +87,15 @@ Approved hashes live in `~/.config/xclaude/trusted`; copies of approved configs 
 
 The user-level config (`~/.config/xclaude/config`) is **not** trust-gated — you own that file and edits take effect on the next launch.
 
+Rejection is fatal: denying a config (or any pack it references — see [Packs](#packs)) exits xclaude without launching Claude. There is no base-only fallback — reject means edit and retry, not run with less.
+
 ### xcodex
 
 `xcodex` follows the same DSL and trust model, but uses Codex-specific defaults:
 
 - Project config: `.xcodex`
 - User config: `~/.config/xcodex/config`
+- Packs: `~/.config/xcodex/packs/<name>`
 - Trust ledger: `~/.config/xcodex/trusted`
 - Base fragments: `base-common.sb` + `base-codex.sb`
 
@@ -118,6 +123,7 @@ allow-exec  ~/.local/bin/custom    # read + exec access
 | Directive | Effect | Use case |
 |---|---|---|
 | `tool <name>` | Activates a bundled toolchain | Language runtimes, package managers |
+| `pack <name>` | Activates a user-defined pack (project config only) | Reuse of DSL across your own projects |
 | `allow-read <path>` | Adds `file-read-data` (subpath) | Config files, shared libraries, datasets |
 | `allow-write <path>` | Adds `file-read-data` + `file-write*` (subpath) | Build caches, data directories |
 | `allow-exec <path>` | Adds `file-read-data` + `process-exec` (subpath) | Custom binaries, scripts |
@@ -171,7 +177,45 @@ allow-read  ~/.config/auto-chat
 allow-write ~/.config/auto-chat
 ```
 
-This layer is applied before the project config, is not trust-gated, and edits take effect on the next launch.
+This layer is applied before the project config, is not trust-gated, and edits take effect on the next launch. `pack` is **not** allowed here; packs exist to share DSL across your own projects, not to define global defaults.
+
+### Packs
+
+Packs are reusable DSL fragments you keep under `~/.config/xclaude/packs/`. Each pack is a plain file using the same four allow-verbs plus `tool`:
+
+```sh
+# ~/.config/xclaude/packs/web-dev
+tool node
+allow-read ~/.config/shared-dotfiles
+allow-write ~/cache/projects-shared
+```
+
+A project opts in with `pack <name>`:
+
+```sh
+# my-project/.xclaude
+pack web-dev
+allow-read ./vendor
+```
+
+**Rules:**
+
+- `pack` is only legal in project configs (`.xclaude`), never in user config or inside another pack.
+- Packs cannot contain `pack` (no nesting, no cycles).
+- Packs can contain `tool <bundled>` and the usual `allow-read`/`allow-write`/`allow-exec`.
+- Packs share the DSL's safety constraints — no raw SBPL, no system paths, no targeting `.xclaude`.
+- Pack names must match `[A-Za-z0-9_][A-Za-z0-9_-]*` (no `..`, no slashes).
+
+**Trust model.** Pack approval is per-project, per-hash:
+
+| Situation | What you see |
+|---|---|
+| First time this project references `pack X` | Prompt — full pack contents shown |
+| Pack unchanged since you approved it for this project | One-line reminder (`using pack X (trusted)`) + verb summary |
+| Pack file changed | Diff prompt — accept/reject the delta |
+| A different project references the same pack (same hash) | Prompt — each project trusts independently |
+
+Approving a pack in project A does **not** carry over to project B: each project audits every pack it pulls in. Denial of any pack exits xclaude — there is no base-only fallback.
 
 ## Bundled plugin
 

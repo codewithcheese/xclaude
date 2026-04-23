@@ -21,6 +21,7 @@ __xsandbox_sync_defaults() {
   : "${__xsandbox_trust_dir:=${HOME}/.config/${__xsandbox_name}}"
   : "${__xsandbox_trusted_file:=${__xsandbox_trust_dir}/trusted}"
   : "${__xsandbox_trusted_copies:=${__xsandbox_trust_dir}/trusted.d}"
+  : "${__xsandbox_packs_dir:=${HOME}/.config/${__xsandbox_name}/packs}"
 }
 
 __xsandbox_log() {
@@ -57,6 +58,16 @@ __xsandbox_parse() {
         [[ -z "$arg" ]] && { __xsandbox_log "${file}:${lineno}: 'tool' requires a name"; return 1; }
         echo "tool ${arg}"
         ;;
+      pack)
+        [[ -z "$arg" ]] && { __xsandbox_log "${file}:${lineno}: 'pack' requires a name"; return 1; }
+        # Pack names are file basenames under ~/.config/<name>/packs/ — constrain
+        # to a safe charset so '..', '/', or leading dashes can't escape the dir.
+        if [[ ! "$arg" =~ ^[A-Za-z0-9_][A-Za-z0-9_-]*$ ]]; then
+          __xsandbox_log "${file}:${lineno}: invalid pack name '${arg}' — use [A-Za-z0-9_-], no leading dash"
+          return 1
+        fi
+        echo "pack ${arg}"
+        ;;
       allow-read|allow-write|allow-exec)
         [[ -z "$arg" ]] && { __xsandbox_log "${file}:${lineno}: '${verb}' requires a path"; return 1; }
         echo "${verb} ${arg}"
@@ -71,7 +82,15 @@ __xsandbox_parse() {
 
 __xsandbox_validate() {
   __xsandbox_sync_defaults
+  # Source context controls which verbs are legal here:
+  #   user    — ~/.config/<name>/config
+  #   project — project <config_name> file
+  #   pack    — a file inside ~/.config/<name>/packs/
+  # `pack` directives are only legal when source=project (no nesting, no
+  # user-level packs — packs exist to reuse config across projects).
+  local source="${1:-project}"
   local line verb arg toolchains_dir="${__xsandbox_dir}/toolchains"
+  local packs_dir="${__xsandbox_packs_dir}"
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -81,6 +100,28 @@ __xsandbox_validate() {
         if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
           __xsandbox_log "unknown toolchain '${arg}'"
           __xsandbox_log "available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')"
+          return 1
+        fi
+        echo "$line"
+        ;;
+      pack)
+        case "$source" in
+          user)
+            __xsandbox_log "'pack' is not allowed in user config — packs are for project-level reuse only"
+            return 1
+            ;;
+          pack)
+            __xsandbox_log "'pack' cannot be nested inside another pack (pack '${arg}')"
+            return 1
+            ;;
+        esac
+        if [[ ! -f "${packs_dir}/${arg}" ]]; then
+          __xsandbox_log "unknown pack '${arg}' — expected file at ${packs_dir}/${arg}"
+          if [[ -d "$packs_dir" ]]; then
+            __xsandbox_log "available: $(ls "${packs_dir}" 2>/dev/null | tr '\n' ' ')"
+          else
+            __xsandbox_log "packs directory does not exist — create it and add pack files as plain DSL"
+          fi
           return 1
         fi
         echo "$line"
@@ -136,7 +177,13 @@ __xsandbox_validate() {
 
 __xsandbox_generate() {
   __xsandbox_sync_defaults
+  # pipefail is required: the `pack` branch recurses through
+  # parse|validate|generate, and a failure in any stage must abort
+  # the whole expansion (not silently produce an empty fragment).
+  setopt local_options pipefail
   local line verb arg sbpl_path toolchains_dir="${__xsandbox_dir}/toolchains"
+  local packs_dir="${__xsandbox_packs_dir}"
+  local pack_file pack_content
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -146,6 +193,15 @@ __xsandbox_generate() {
         echo ""
         echo ";; ── toolchain: ${arg} ──"
         cat "${toolchains_dir}/${arg}.sb"
+        ;;
+      pack)
+        # Validator already confirmed file existence and legality in the
+        # enclosing source. Recurse with source=pack to forbid nesting.
+        pack_file="${packs_dir}/${arg}"
+        pack_content="$(__xsandbox_parse "$pack_file" | __xsandbox_validate pack | __xsandbox_generate)" || return 1
+        echo ""
+        echo ";; ── pack: ${arg} (${pack_file/#${HOME}/~}) ──"
+        printf '%s\n' "$pack_content"
         ;;
       allow-read|allow-write|allow-exec)
         sbpl_path="$(__xsandbox_path_to_sbpl "$arg")"
@@ -189,19 +245,40 @@ __xsandbox_path_key() {
   echo -n "$1" | shasum -a 256 | cut -d' ' -f1
 }
 
+# Snapshot key for a (project, pack) pair. Trust is scoped to this tuple —
+# approving pack 'dev' in project A does NOT approve it in project B even
+# at the same hash. The compound key guarantees independent snapshots in
+# trusted.d/ so diff rendering remains correct per-project.
+__xsandbox_pack_key() {
+  local pack_file="$1" project_config="$2"
+  local pack_name="${pack_file##*/}"
+  echo -n "${project_config}|pack|${pack_name}" | shasum -a 256 | cut -d' ' -f1
+}
+
 __xsandbox_is_trusted() {
   __xsandbox_sync_defaults
-  local file="$1"
+  # Line-exact match on "<hash> # <file>". Avoids regex metacharacter
+  # interpretation of the file path (e.g. '.' as any-char) and collisions
+  # with unrelated entries (pack entries, other projects) whose lines
+  # happen to share a prefix.
+  local file="$1" hash expected line
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
-  local hash="$(__xsandbox_file_hash "$file")"
-  grep -q "^${hash} " "$__xsandbox_trusted_file" 2>/dev/null
+  hash="$(__xsandbox_file_hash "$file")"
+  expected="${hash} # ${file}"
+  while IFS= read -r line; do
+    [[ "$line" = "$expected" ]] && return 0
+  done < "$__xsandbox_trusted_file"
+  return 1
 }
 
 __xsandbox_was_previously_trusted() {
   __xsandbox_sync_defaults
-  local file="$1"
+  local file="$1" suffix=" # ${file}" line
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
-  grep -q "# ${file}$" "$__xsandbox_trusted_file" 2>/dev/null
+  while IFS= read -r line; do
+    [[ "$line" = *"$suffix" ]] && return 0
+  done < "$__xsandbox_trusted_file"
+  return 1
 }
 
 __xsandbox_trust() {
@@ -209,12 +286,68 @@ __xsandbox_trust() {
   local file="$1"
   mkdir -p "$__xsandbox_trust_dir" "$__xsandbox_trusted_copies"
   local hash="$(__xsandbox_file_hash "$file")"
+  local suffix=" # ${file}" line
   if [[ -f "$__xsandbox_trusted_file" ]]; then
-    grep -v "# ${file}$" "$__xsandbox_trusted_file" > "${__xsandbox_trusted_file}.tmp" 2>/dev/null || true
+    : > "${__xsandbox_trusted_file}.tmp"
+    while IFS= read -r line; do
+      [[ "$line" = *"$suffix" ]] && continue
+      printf '%s\n' "$line" >> "${__xsandbox_trusted_file}.tmp"
+    done < "$__xsandbox_trusted_file"
     mv "${__xsandbox_trusted_file}.tmp" "$__xsandbox_trusted_file"
   fi
   echo "${hash} # ${file}" >> "$__xsandbox_trusted_file"
   cp "$file" "${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$file")"
+}
+
+# Pack trust ledger entry format:
+#   <pack_hash> # <project_config_path> pack <pack_name>
+#
+# Keyed on (project_config_path, pack_name) so re-running a project that
+# already approved the pack at its current hash is silent; another project
+# referencing the same pack file prompts independently.
+
+__xsandbox_is_pack_trusted_for_project() {
+  __xsandbox_sync_defaults
+  local pack_file="$1" project_config="$2"
+  [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
+  local hash="$(__xsandbox_file_hash "$pack_file")"
+  local pack_name="${pack_file##*/}"
+  local expected="${hash} # ${project_config} pack ${pack_name}" line
+  while IFS= read -r line; do
+    [[ "$line" = "$expected" ]] && return 0
+  done < "$__xsandbox_trusted_file"
+  return 1
+}
+
+__xsandbox_was_pack_previously_trusted_for_project() {
+  __xsandbox_sync_defaults
+  local pack_file="$1" project_config="$2"
+  [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
+  local pack_name="${pack_file##*/}"
+  local suffix=" # ${project_config} pack ${pack_name}" line
+  while IFS= read -r line; do
+    [[ "$line" = *"$suffix" ]] && return 0
+  done < "$__xsandbox_trusted_file"
+  return 1
+}
+
+__xsandbox_trust_pack_for_project() {
+  __xsandbox_sync_defaults
+  local pack_file="$1" project_config="$2"
+  mkdir -p "$__xsandbox_trust_dir" "$__xsandbox_trusted_copies"
+  local hash="$(__xsandbox_file_hash "$pack_file")"
+  local pack_name="${pack_file##*/}"
+  local suffix=" # ${project_config} pack ${pack_name}" line
+  if [[ -f "$__xsandbox_trusted_file" ]]; then
+    : > "${__xsandbox_trusted_file}.tmp"
+    while IFS= read -r line; do
+      [[ "$line" = *"$suffix" ]] && continue
+      printf '%s\n' "$line" >> "${__xsandbox_trusted_file}.tmp"
+    done < "$__xsandbox_trusted_file"
+    mv "${__xsandbox_trusted_file}.tmp" "$__xsandbox_trusted_file"
+  fi
+  echo "${hash} # ${project_config} pack ${pack_name}" >> "$__xsandbox_trusted_file"
+  cp "$pack_file" "${__xsandbox_trusted_copies}/$(__xsandbox_pack_key "$pack_file" "$project_config")"
 }
 
 __xsandbox_color_enabled() {
@@ -406,14 +539,98 @@ __xsandbox_check_trust() {
       return 0
       ;;
     *)
-      __xsandbox_log "denied — running with base profile only"
+      __xsandbox_log "denied"
       return 1
       ;;
   esac
 }
 
+# Per-(project, pack) trust gate. Silent when the pack's current hash is
+# already trusted for this project (prints a reminder line + summary so the
+# user still sees what's active). Prompts on new, changed, or never-seen-
+# for-this-project packs. Return 0 on approval (or no-op), 1 on denial.
+__xsandbox_check_pack_trust() {
+  __xsandbox_sync_defaults
+  local pack_file="$1" project_config="$2"
+  [[ ! -f "$pack_file" ]] && return 0  # missing pack handled by validator
+  local pack_name="${pack_file##*/}"
+
+  if __xsandbox_is_pack_trusted_for_project "$pack_file" "$project_config"; then
+    __xsandbox_log "using pack ${pack_name} (trusted)"
+    __xsandbox_summarize_new "$pack_file" >&2
+    return 0
+  fi
+
+  local snapshot="${__xsandbox_trusted_copies}/$(__xsandbox_pack_key "$pack_file" "$project_config")"
+
+  if __xsandbox_was_pack_previously_trusted_for_project "$pack_file" "$project_config" && [[ -f "$snapshot" ]]; then
+    __xsandbox_log "pack changed: ${pack_name} (for ${project_config})"
+    __xsandbox_summarize_diff "$snapshot" "$pack_file" >&2
+    echo "─────────────────────────────────────" >&2
+    diff -u "$snapshot" "$pack_file" --label "trusted" --label "current" \
+      | __xsandbox_colorize_diff >&2 || true
+    echo "─────────────────────────────────────" >&2
+  else
+    __xsandbox_log "new pack: ${pack_name} (for ${project_config})"
+    __xsandbox_summarize_new "$pack_file" >&2
+    echo "─────────────────────────────────────" >&2
+    __xsandbox_colorize_new < "$pack_file" >&2
+    echo "─────────────────────────────────────" >&2
+  fi
+
+  local PB="" PZ=""
+  if __xsandbox_color_enabled; then
+    PB=$'\e[1m'
+    PZ=$'\e[0m'
+  fi
+  echo -n "${PB}${__xsandbox_name}: allow pack ${pack_name} for this project? [y/N]${PZ} " >&2
+  local reply
+  read -r reply
+  case "$reply" in
+    [yY]|[yY][eE][sS])
+      __xsandbox_trust_pack_for_project "$pack_file" "$project_config"
+      return 0
+      ;;
+    *)
+      __xsandbox_log "pack ${pack_name} denied"
+      return 1
+      ;;
+  esac
+}
+
+# Walks the project config for `pack <name>` references and trust-gates
+# each one in the context of this project. Stops at the first denial so
+# the user sees a clean "pack X denied" error instead of a cascade.
+__xsandbox_check_pack_trusts() {
+  __xsandbox_sync_defaults
+  local project_config="$1"
+  [[ ! -f "$project_config" ]] && return 0
+  local line name pack_file
+  # If the project config has a parse error the assembler will surface it;
+  # here we just ignore unparseable lines (|| true) so a bad config
+  # doesn't wedge the trust check before the real error is emitted.
+  #
+  # fd 3 carries the parse output so the inner check_pack_trust can still
+  # read user replies from stdin. Without this the while-loop's stdin
+  # redirection would starve the interactive `read` inside the prompt.
+  while IFS= read -r line <&3; do
+    [[ "$line" = "pack "* ]] || continue
+    name="${line#pack }"
+    pack_file="${__xsandbox_packs_dir}/${name}"
+    if ! __xsandbox_check_pack_trust "$pack_file" "$project_config"; then
+      exec 3<&-
+      return 1
+    fi
+  done 3< <(__xsandbox_parse "$project_config" 2>/dev/null || true)
+  exec 3<&-
+  return 0
+}
+
 __xsandbox_assemble() {
   __xsandbox_sync_defaults
+  # Without pipefail, a parse failure early in the pipeline is masked by
+  # the later stages' zero exit. The assembler must abort on any failure.
+  setopt local_options pipefail
   local project_dir="$1"
   local project_config="${project_dir}/${__xsandbox_config_name}"
   local assembled generated
@@ -421,7 +638,7 @@ __xsandbox_assemble() {
   assembled="$(__xsandbox_read_base_profile)"
 
   if [[ -f "$__xsandbox_user_config" ]]; then
-    generated="$(__xsandbox_parse "$__xsandbox_user_config" | __xsandbox_validate | __xsandbox_generate)" || return 1
+    generated="$(__xsandbox_parse "$__xsandbox_user_config" | __xsandbox_validate user | __xsandbox_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; User config: '"${__xsandbox_user_config/#${HOME}/~}"$'\n;; ============================================================'
@@ -429,8 +646,17 @@ __xsandbox_assemble() {
     fi
   fi
 
-  if [[ -f "$project_config" ]] && __xsandbox_check_trust "$project_config"; then
-    generated="$(__xsandbox_parse "$project_config" | __xsandbox_validate | __xsandbox_generate)" || return 1
+  if [[ -f "$project_config" ]]; then
+    # Project config must be trusted. Denial exits — no base-only fallback.
+    if ! __xsandbox_check_trust "$project_config"; then
+      return 1
+    fi
+    # Every pack referenced from the project gets its own per-project
+    # trust check. Denial exits — see above.
+    if ! __xsandbox_check_pack_trusts "$project_config"; then
+      return 1
+    fi
+    generated="$(__xsandbox_parse "$project_config" | __xsandbox_validate project | __xsandbox_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; Project config: '"${__xsandbox_config_name}"$'\n;; ============================================================'

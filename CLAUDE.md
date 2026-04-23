@@ -191,6 +191,17 @@ Add the toolchain to the skill's toolchain table so the debug-sandbox skill know
 
 Each toolchain gets its own parallel CI job in `.github/workflows/test.yml`. The job installs the tool at its canonical path and runs `zsh test_sandbox.zsh --toolchain <name>`.
 
+## Adding a pack
+
+Packs are **user data**, not repo assets. They live at `~/.config/<name>/packs/<pack-name>` and are written in the same DSL as `.xclaude` (minus `pack` itself — no nesting). There is no template to check in, no test harness to wire up: a pack is just a file the user drops in their own config directory.
+
+When working on pack-related code:
+
+- Parser, validator, and generator all go through `xsandbox.lib.zsh`. The validator takes a source argument (`user`, `project`, `pack`) — `pack` is only legal with `source=project`, and `pack` with `source=pack` is an error.
+- Generator expansion is recursive: a `pack` directive re-runs `__xsandbox_parse | __xsandbox_validate pack | __xsandbox_generate` on the pack file. Keep pipefail enabled in any new pipeline so inner failures abort assembly.
+- Trust is per-(project, pack name, pack hash). Ledger entries for packs use the compound form `<hash> # <project_path> pack <pack_name>`; snapshots under `trusted.d/` are keyed by a sha256 of `<project_path>|pack|<pack_name>`.
+- `__xsandbox_check_pack_trusts` uses fd 3 for its parse feed so the interactive `read` inside `__xsandbox_check_pack_trust` still sees user stdin. Don't "simplify" that to a normal while-loop redirect.
+
 ## Modifying the base policy (base.sb)
 
 ### Adding read access

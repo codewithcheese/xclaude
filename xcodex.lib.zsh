@@ -20,6 +20,7 @@ __xcodex_sync() {
   __xsandbox_trust_dir="${__xcodex_trust_dir}"
   __xsandbox_trusted_file="${__xcodex_trusted_file}"
   __xsandbox_trusted_copies="${__xcodex_trusted_copies}"
+  __xsandbox_packs_dir="${HOME}/.config/xcodex/packs"
 }
 
 __xcodex_parse() { __xcodex_sync; __xsandbox_parse "$@"; }
@@ -28,8 +29,14 @@ __xcodex_generate() { __xcodex_sync; __xsandbox_generate "$@"; }
 __xcodex_path_to_sbpl() { __xcodex_sync; __xsandbox_path_to_sbpl "$@"; }
 __xcodex_file_hash() { __xcodex_sync; __xsandbox_file_hash "$@"; }
 __xcodex_path_key() { __xcodex_sync; __xsandbox_path_key "$@"; }
+__xcodex_pack_key() { __xcodex_sync; __xsandbox_pack_key "$@"; }
 __xcodex_is_trusted() { __xcodex_sync; __xsandbox_is_trusted "$@"; }
 __xcodex_was_previously_trusted() { __xcodex_sync; __xsandbox_was_previously_trusted "$@"; }
 __xcodex_trust() { __xcodex_sync; __xsandbox_trust "$@"; }
 __xcodex_check_trust() { __xcodex_sync; __xsandbox_check_trust "$@"; }
+__xcodex_is_pack_trusted_for_project() { __xcodex_sync; __xsandbox_is_pack_trusted_for_project "$@"; }
+__xcodex_was_pack_previously_trusted_for_project() { __xcodex_sync; __xsandbox_was_pack_previously_trusted_for_project "$@"; }
+__xcodex_trust_pack_for_project() { __xcodex_sync; __xsandbox_trust_pack_for_project "$@"; }
+__xcodex_check_pack_trust() { __xcodex_sync; __xsandbox_check_pack_trust "$@"; }
+__xcodex_check_pack_trusts() { __xcodex_sync; __xsandbox_check_pack_trusts "$@"; }
 __xcodex_assemble() { __xcodex_sync; __xsandbox_assemble "$@"; }

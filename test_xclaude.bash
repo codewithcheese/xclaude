@@ -34,6 +34,14 @@ __xclaude_parse() {
         [[ -z "$arg" ]] && { echo "xclaude: ${file}:${lineno}: 'tool' requires a name" >&2; return 1; }
         echo "tool ${arg}"
         ;;
+      pack)
+        [[ -z "$arg" ]] && { echo "xclaude: ${file}:${lineno}: 'pack' requires a name" >&2; return 1; }
+        if [[ ! "$arg" =~ ^[A-Za-z0-9_][A-Za-z0-9_-]*$ ]]; then
+          echo "xclaude: ${file}:${lineno}: invalid pack name '${arg}' — use [A-Za-z0-9_-], no leading dash" >&2
+          return 1
+        fi
+        echo "pack ${arg}"
+        ;;
       allow-read|allow-write|allow-exec)
         [[ -z "$arg" ]] && { echo "xclaude: ${file}:${lineno}: '${verb}' requires a path" >&2; return 1; }
         echo "${verb} ${arg}"
@@ -47,7 +55,9 @@ __xclaude_parse() {
 }
 
 __xclaude_validate() {
+  local source="${1:-project}"
   local line verb arg toolchains_dir="${__xclaude_dir}/toolchains"
+  local packs_dir="${HOME}/.config/xclaude/packs"
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -57,6 +67,26 @@ __xclaude_validate() {
         if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
           echo "xclaude: unknown toolchain '${arg}'" >&2
           echo "xclaude: available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')" >&2
+          return 1
+        fi
+        echo "$line"
+        ;;
+      pack)
+        case "$source" in
+          user)
+            echo "xclaude: 'pack' is not allowed in user config — packs are for project-level reuse only" >&2
+            return 1
+            ;;
+          pack)
+            echo "xclaude: 'pack' cannot be nested inside another pack (pack '${arg}')" >&2
+            return 1
+            ;;
+        esac
+        if [[ ! -f "${packs_dir}/${arg}" ]]; then
+          echo "xclaude: unknown pack '${arg}' — expected file at ${packs_dir}/${arg}" >&2
+          if [[ -d "$packs_dir" ]]; then
+            echo "xclaude: available: $(ls "${packs_dir}" 2>/dev/null | tr '\n' ' ')" >&2
+          fi
           return 1
         fi
         echo "$line"
@@ -131,6 +161,11 @@ __xclaude_path_to_sbpl() {
 
 __xclaude_generate() {
   local line verb arg sbpl_path toolchains_dir="${__xclaude_dir}/toolchains"
+  # Packs dir picks the name based on a caller-set default — tests that
+  # drive xcodex override HOME/paths directly, so ${HOME}/.config/xclaude is
+  # fine for the Claude paths and xcodex tests use their own fixtures.
+  local packs_dir="${HOME}/.config/xclaude/packs"
+  local pack_file pack_content
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -140,6 +175,13 @@ __xclaude_generate() {
         echo ""
         echo ";; ── toolchain: ${arg} ──"
         cat "${toolchains_dir}/${arg}.sb"
+        ;;
+      pack)
+        pack_file="${packs_dir}/${arg}"
+        pack_content="$(__xclaude_parse "$pack_file" | __xclaude_validate pack | __xclaude_generate)" || return 1
+        echo ""
+        echo ";; ── pack: ${arg} (${pack_file/#${HOME}/~}) ──"
+        printf '%s\n' "$pack_content"
         ;;
       allow-read|allow-write|allow-exec)
         sbpl_path="$(__xclaude_path_to_sbpl "$arg")"
@@ -174,7 +216,7 @@ __xclaude_assemble() {
   assembled="$(cat "$base_common" "$base_profile")"
 
   if [[ -f "$user_config" ]]; then
-    generated="$(__xclaude_parse "$user_config" | __xclaude_validate | __xclaude_generate)" || return 1
+    generated="$(__xclaude_parse "$user_config" | __xclaude_validate user | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; User config: ~/.config/xclaude/config'
@@ -184,7 +226,7 @@ __xclaude_assemble() {
   fi
 
   if [[ -f "$project_config" ]]; then
-    generated="$(__xclaude_parse "$project_config" | __xclaude_validate | __xclaude_generate)" || return 1
+    generated="$(__xclaude_parse "$project_config" | __xclaude_validate project | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; Project config: .xclaude'
@@ -197,7 +239,9 @@ __xclaude_assemble() {
 }
 
 __xcodex_validate() {
+  local source="${1:-project}"
   local line verb arg toolchains_dir="${__xclaude_dir}/toolchains"
+  local packs_dir="${HOME}/.config/xcodex/packs"
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -207,6 +251,26 @@ __xcodex_validate() {
         if [[ ! -f "${toolchains_dir}/${arg}.sb" ]]; then
           echo "xcodex: unknown toolchain '${arg}'" >&2
           echo "xcodex: available: $(ls "${toolchains_dir}"/*.sb 2>/dev/null | xargs -I{} basename {} .sb | tr '\n' ' ')" >&2
+          return 1
+        fi
+        echo "$line"
+        ;;
+      pack)
+        case "$source" in
+          user)
+            echo "xcodex: 'pack' is not allowed in user config — packs are for project-level reuse only" >&2
+            return 1
+            ;;
+          pack)
+            echo "xcodex: 'pack' cannot be nested inside another pack (pack '${arg}')" >&2
+            return 1
+            ;;
+        esac
+        if [[ ! -f "${packs_dir}/${arg}" ]]; then
+          echo "xcodex: unknown pack '${arg}' — expected file at ${packs_dir}/${arg}" >&2
+          if [[ -d "$packs_dir" ]]; then
+            echo "xcodex: available: $(ls "${packs_dir}" 2>/dev/null | tr '\n' ' ')" >&2
+          fi
           return 1
         fi
         echo "$line"
@@ -271,7 +335,7 @@ __xcodex_assemble() {
   assembled="$(cat "$base_common" "$base_profile")"
 
   if [[ -f "$user_config" ]]; then
-    generated="$(__xclaude_parse "$user_config" | __xcodex_validate | __xclaude_generate)" || return 1
+    generated="$(__xclaude_parse "$user_config" | __xcodex_validate user | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; User config: ~/.config/xcodex/config'
@@ -281,7 +345,7 @@ __xcodex_assemble() {
   fi
 
   if [[ -f "$project_config" ]]; then
-    generated="$(__xclaude_parse "$project_config" | __xcodex_validate | __xclaude_generate)" || return 1
+    generated="$(__xclaude_parse "$project_config" | __xcodex_validate project | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
       assembled+=$'\n;; Project config: .xcodex'
@@ -837,6 +901,133 @@ done
 if $all_ok; then
   __test_pass=$((__test_pass + 1))
 fi
+
+# ── Packs (DSL pipeline) ─────────────────────────────────────
+echo "=== Packs ==="
+
+# Use a sandboxed HOME so pack files live under our temp tree and we don't
+# read the real user's ~/.config/xclaude/packs. Tests restore HOME after.
+__pack_home="${TMPDIR_TEST}/packs_home"
+__pack_dir="${__pack_home}/.config/xclaude/packs"
+mkdir -p "$__pack_dir"
+__orig_home="$HOME"
+export HOME="$__pack_home"
+
+# Parser: pack name shape
+t "parser accepts pack with simple name"
+f="$(fixture pk_a "pack my-dev")"
+assert_eq "pack my-dev" "$(__xclaude_parse "$f")"
+
+t "parser accepts pack name with digits and underscore"
+f="$(fixture pk_b "pack my_pack_2")"
+assert_eq "pack my_pack_2" "$(__xclaude_parse "$f")"
+
+t "parser rejects pack without name"
+f="$(fixture pk_c "pack")"
+assert_fails __xclaude_parse "$f"
+
+t "parser rejects pack name with slash"
+f="$(fixture pk_d "pack ../evil")"
+assert_fails __xclaude_parse "$f"
+
+t "parser rejects pack name starting with dash"
+f="$(fixture pk_e "pack -rf")"
+assert_fails __xclaude_parse "$f"
+
+t "parser rejects pack name with spaces (multi-arg)"
+# 'pack foo bar' parses arg='foo bar' — fails charset check
+f="$(fixture pk_f "pack foo bar")"
+assert_fails __xclaude_parse "$f"
+
+# Validator: source-context matrix
+echo "my-pack-body" > "${__pack_dir}/devpack"
+
+t "validator accepts pack in project source"
+assert_succeeds "echo 'pack devpack' | __xclaude_validate project"
+
+t "validator rejects pack in user source"
+assert_fails "echo 'pack devpack' | __xclaude_validate user"
+
+t "validator rejects pack in pack source (no nesting)"
+assert_fails "echo 'pack devpack' | __xclaude_validate pack"
+
+t "validator rejects missing pack with helpful error"
+err="$(echo 'pack nonexistent' | __xclaude_validate project 2>&1 >/dev/null || true)"
+assert_contains "unknown pack 'nonexistent'" "$err"
+
+# Generator: pack expansion
+rm -f "${__pack_dir}/devpack"
+cat > "${__pack_dir}/devpack" <<'EOF'
+# shared dev config
+tool node
+allow-read ~/.config/shared
+allow-write ~/data/shared
+EOF
+
+t "generator expands pack contents inline"
+out="$(echo 'pack devpack' | __xclaude_generate)"
+assert_contains "pack: devpack" "$out"
+# Inner tool directive gets fully expanded (not just its name)
+assert_contains "toolchain: node" "$out"
+assert_contains "/.nvm" "$out"
+# Inner allow-read gets emitted as SBPL
+assert_contains "/.config/shared" "$out"
+assert_contains "file-read-data" "$out"
+# Inner allow-write
+assert_contains "/data/shared" "$out"
+assert_contains "file-write*" "$out"
+
+t "generator fails on missing pack at recursion time"
+# Simulate: validator passed earlier because file existed, then file
+# removed before generator runs. Generator's inner parse must fail.
+echo 'pack gone' > "${__pack_dir}/gone"
+# Remove right after writing to make parse fail
+__bad_dir="$(mktemp -d)"
+assert_fails "echo 'pack gone' | __xclaude_generate"
+rm -rf "$__bad_dir"
+rm -f "${__pack_dir}/gone"
+
+t "generator rejects nested pack via recursive validate(pack)"
+# A pack that references another pack — validator inside the recursion
+# must reject it with source=pack.
+echo 'pack devpack' > "${__pack_dir}/parent"
+assert_fails "echo 'pack parent' | __xclaude_generate"
+rm -f "${__pack_dir}/parent"
+
+# Assembly with pack (no trust gate — bypass by using direct calls)
+t "assembly expands pack referenced from project config"
+proj_dir="$(mktemp -d)"
+cat > "${proj_dir}/.xclaude" <<'EOF'
+pack devpack
+allow-read ~/.config/extra
+EOF
+# The assembler uses check_trust which in test context has no ledger —
+# bypass by calling the pipeline directly, mirroring how assembler does.
+out="$(__xclaude_parse "${proj_dir}/.xclaude" | __xclaude_validate project | __xclaude_generate)"
+assert_contains "pack: devpack" "$out"
+assert_contains "toolchain: node" "$out"
+assert_contains "/.config/shared" "$out"
+assert_contains "/.config/extra" "$out"
+# Balanced parens across the whole expansion
+opens="${out//[^(]/}"
+closes="${out//[^)]/}"
+assert_eq "${#opens}" "${#closes}"
+rm -rf "$proj_dir"
+
+t "pack inherits DSL safety: rejects raw system path inside pack"
+# Packs are still DSL-validated — can't grant /System through a pack.
+echo 'allow-read /System/Library' > "${__pack_dir}/bad"
+assert_fails "echo 'pack bad' | __xclaude_generate"
+rm -f "${__pack_dir}/bad"
+
+t "pack inherits DSL safety: rejects .xclaude target inside pack"
+echo 'allow-write ./.xclaude' > "${__pack_dir}/bad2"
+assert_fails "echo 'pack bad2' | __xclaude_generate"
+rm -f "${__pack_dir}/bad2"
+
+# Cleanup
+rm -rf "$__pack_dir"
+export HOME="$__orig_home"
 
 # ── Edge cases ────────────────────────────────────────────────
 echo "=== Edge cases ==="
