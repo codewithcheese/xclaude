@@ -133,7 +133,9 @@ assert_contains $'\e[1mxclaude: allow this config? [y/N]\e[0m' "$__out"
 
 t "new config + 'y': ledger gets entry, exit 0"
 assert_eq "0" "$__rc"
-if [[ -f "$__xsandbox_trusted_file" ]] && grep -q "# ${cfg}$" "$__xsandbox_trusted_file"; then
+# Non-git path: ledger entry uses 'path:<resolved>' scope form.
+__cfg_resolved="$(readlink -f "$cfg")"
+if [[ -f "$__xsandbox_trusted_file" ]] && grep -qF "# path:${__cfg_resolved}" "$__xsandbox_trusted_file"; then
   __pass=$((__pass + 1))
 else
   __fail=$((__fail + 1))
@@ -237,12 +239,13 @@ run_pack_trust "$pack" "$proj" "y"
 assert_eq "0" "$__rc"
 assert_contains "new pack: dev" "$__out"
 assert_contains "allow pack dev for this project? [y/N]" "$__out"
-# Ledger entry is compound — hash + project_path + pack name
-if grep -q "# ${proj} pack dev\$" "$__xsandbox_trusted_file"; then
+# Ledger entry uses path:<resolved> scope form for non-git project
+__proj_resolved="$(readlink -f "$proj")"
+if grep -qF "# path:${__proj_resolved} pack dev" "$__xsandbox_trusted_file"; then
   __pass=$((__pass + 1))
 else
   __fail=$((__fail + 1))
-  echo "FAIL: ${__name} — ledger missing compound entry for dev" >&2
+  echo "FAIL: ${__name} — ledger missing scope-format pack entry for dev" >&2
 fi
 
 t "trusted pack (same project, same hash): reminder only, no prompt"
@@ -260,9 +263,11 @@ run_pack_trust "$pack" "$projB" "y"
 assert_eq "0" "$__rc"
 assert_contains "new pack: dev" "$__out"
 assert_contains "allow pack dev for this project?" "$__out"
-# Both projects' entries coexist in the ledger
-if grep -q "# ${proj} pack dev\$" "$__xsandbox_trusted_file" \
-  && grep -q "# ${projB} pack dev\$" "$__xsandbox_trusted_file"; then
+# Both projects' entries coexist in the ledger (each at its own path: scope)
+__proj_resolved="$(readlink -f "$proj")"
+__projB_resolved="$(readlink -f "$projB")"
+if grep -qF "# path:${__proj_resolved} pack dev" "$__xsandbox_trusted_file" \
+  && grep -qF "# path:${__projB_resolved} pack dev" "$__xsandbox_trusted_file"; then
   __pass=$((__pass + 1))
 else
   __fail=$((__fail + 1))
@@ -283,8 +288,9 @@ assert_contains "--- trusted" "$__out"
 assert_contains "+++ current" "$__out"
 assert_contains "+1" "$__out"
 assert_contains "exec" "$__out"
-# Ledger entry updated to new hash, only one entry per (proj, pack name)
-count=$(grep -c "# ${proj} pack dev\$" "$__xsandbox_trusted_file")
+# Ledger entry updated to new hash, only one entry per (proj_scope, pack name)
+__proj_resolved="$(readlink -f "$proj")"
+count=$(grep -cF "# path:${__proj_resolved} pack dev" "$__xsandbox_trusted_file")
 assert_eq "1" "$count"
 
 t "pack denial: rc=1, ledger entry not added"
@@ -479,6 +485,400 @@ if __xsandbox_is_pack_trusted_for_project "$pack_upd" "$proj_upd"; then
 else
   __fail=$((__fail + 1))
   echo "FAIL: ${__name} — pack not trusted at new hash" >&2
+fi
+reset_ledger
+
+# ── Trust scope (repo-aware identity) ──────────────────────
+echo ""
+echo "=== Trust scope ==="
+
+reset_ledger
+
+# Helper: build a fixture git repo with one initial commit + a worktree.
+# Sets fixture_repo, fixture_worktree, fixture_repo_id (the absolute,
+# symlink-resolved git-common-dir that should be shared by both).
+make_repo_fixture() {
+  local base="$1"
+  rm -rf "$base"
+  mkdir -p "$base"
+  git -C "$base" init -q -b main
+  git -C "$base" config user.email "t@example.com"
+  git -C "$base" config user.name "T"
+  echo "tool node" > "${base}/.xclaude"
+  git -C "$base" add .xclaude
+  git -C "$base" -c commit.gpgsign=false commit -q -m init
+  fixture_repo="$base"
+  fixture_worktree="${base}/.claude/worktrees/feature"
+  git -C "$base" worktree add -q "$fixture_worktree" -b feature 2>/dev/null
+  fixture_repo_id="$(readlink -f "${base}/.git")"
+}
+
+t "trust_scope: file in regular git repo returns repo:<common-dir>"
+make_repo_fixture "${TMP}/repo-scope-a"
+scope=$(__xsandbox_trust_scope "${fixture_repo}/.xclaude")
+assert_eq "repo:${fixture_repo_id}" "$scope"
+
+t "trust_scope: worktree resolves to main repo's common-dir"
+scope=$(__xsandbox_trust_scope "${fixture_worktree}/.xclaude")
+assert_eq "repo:${fixture_repo_id}" "$scope"
+
+t "trust_scope: file outside any git repo returns path:<resolved>"
+non_git_dir="${TMP}/scope-non-git"
+mkdir -p "$non_git_dir"
+non_git_file="${non_git_dir}/.xclaude"
+echo "tool node" > "$non_git_file"
+expected_resolved="$(readlink -f "$non_git_file")"
+scope=$(__xsandbox_trust_scope "$non_git_file")
+assert_eq "path:${expected_resolved}" "$scope"
+
+t "trust_scope: nonexistent file in git repo still resolves via parent dir"
+# The .xclaude file may not exist yet (first run after creating the project).
+# Scope must still resolve based on the containing dir's git context.
+ghost_file="${fixture_repo}/.xclaude.does-not-exist"
+scope=$(__xsandbox_trust_scope "$ghost_file")
+assert_eq "repo:${fixture_repo_id}" "$scope"
+
+# ── Scope-aware ledger (worktree trust sharing) ────────────
+echo ""
+echo "=== Scope-aware ledger ==="
+
+reset_ledger
+
+t "trust in main repo covers worktree at same commit (identical content)"
+make_repo_fixture "${TMP}/share-trust"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Worktree's .xclaude was created by `git worktree add` checking out the same
+# branch that committed .xclaude. Content is byte-identical.
+if __xsandbox_is_trusted "${fixture_worktree}/.xclaude"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — worktree should inherit trust from main repo" >&2
+fi
+reset_ledger
+
+t "diverged worktree (different content) is NOT trusted"
+make_repo_fixture "${TMP}/diverged-trust"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Modify the worktree's .xclaude to diverge
+echo "tool python" > "${fixture_worktree}/.xclaude"
+if __xsandbox_is_trusted "${fixture_worktree}/.xclaude"; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — diverged content must re-prompt" >&2
+else
+  __pass=$((__pass + 1))
+fi
+reset_ledger
+
+t "separate clone with same content is NOT trusted (different repo_id)"
+make_repo_fixture "${TMP}/orig-clone"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Independent repo with the exact same .xclaude content
+mkdir -p "${TMP}/separate-clone"
+git -C "${TMP}/separate-clone" init -q -b main
+echo "tool node" > "${TMP}/separate-clone/.xclaude"
+if __xsandbox_is_trusted "${TMP}/separate-clone/.xclaude"; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — separate repo must re-prompt even at same content" >&2
+else
+  __pass=$((__pass + 1))
+fi
+reset_ledger
+
+t "trust() writes new repo-scoped format for in-repo file"
+make_repo_fixture "${TMP}/new-format"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+hash="$(__xsandbox_file_hash "${fixture_repo}/.xclaude")"
+expected_line="${hash} # repo:${fixture_repo_id} @ ${fixture_repo}/.xclaude"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — expected line not found:" >&2
+  echo "  expected: $expected_line" >&2
+  echo "  ledger contents:" >&2
+  cat "$__xsandbox_trusted_file" >&2
+fi
+reset_ledger
+
+t "trust() writes path-scoped format for non-git file"
+non_git_dir="${TMP}/non-git-trust"
+mkdir -p "$non_git_dir"
+non_git_file="${non_git_dir}/.xclaude"
+echo "tool node" > "$non_git_file"
+__xsandbox_trust "$non_git_file"
+hash="$(__xsandbox_file_hash "$non_git_file")"
+resolved_path="$(readlink -f "$non_git_file")"
+# path: form does not need the redundant @ tail
+expected_line="${hash} # path:${resolved_path}"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — expected line not found:" >&2
+  echo "  expected: $expected_line" >&2
+  cat "$__xsandbox_trusted_file" >&2
+fi
+reset_ledger
+
+t "legacy ledger entry (no scope marker) still satisfies is_trusted at original path"
+# Simulate a pre-migration ledger: '<hash> # <file>' with no scope marker.
+legacy_dir="${TMP}/legacy-entry"
+mkdir -p "$legacy_dir" "$__xsandbox_trust_dir"
+legacy_file="${legacy_dir}/.xclaude"
+echo "tool node" > "$legacy_file"
+hash="$(__xsandbox_file_hash "$legacy_file")"
+echo "${hash} # ${legacy_file}" > "$__xsandbox_trusted_file"
+if __xsandbox_is_trusted "$legacy_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy entry not honored" >&2
+fi
+reset_ledger
+
+t "legacy ledger entry honored even when file is now in a git repo"
+# A user upgraded xclaude. Their old entry was '<hash> # /repo/.xclaude'.
+# After upgrade, scope would be 'repo:/repo/.git', but we still want their
+# existing trust to count for the same file path until they re-trust.
+make_repo_fixture "${TMP}/legacy-in-repo"
+hash="$(__xsandbox_file_hash "${fixture_repo}/.xclaude")"
+mkdir -p "$__xsandbox_trust_dir"
+echo "${hash} # ${fixture_repo}/.xclaude" > "$__xsandbox_trusted_file"
+if __xsandbox_is_trusted "${fixture_repo}/.xclaude"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy entry must work even for in-repo files" >&2
+fi
+reset_ledger
+
+t "trust() cleans up legacy entry for same path on rewrite"
+# A legacy entry exists; user is being re-trusted under new format.
+# After trust(), the legacy entry should be gone and only the new entry remain.
+make_repo_fixture "${TMP}/legacy-cleanup"
+hash="$(__xsandbox_file_hash "${fixture_repo}/.xclaude")"
+mkdir -p "$__xsandbox_trust_dir"
+echo "${hash} # ${fixture_repo}/.xclaude" > "$__xsandbox_trusted_file"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Legacy line gone:
+if grep -qxF "${hash} # ${fixture_repo}/.xclaude" "$__xsandbox_trusted_file"; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy entry not removed" >&2
+else
+  __pass=$((__pass + 1))
+fi
+# New line present:
+expected_line="${hash} # repo:${fixture_repo_id} @ ${fixture_repo}/.xclaude"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — new format entry missing after rewrite" >&2
+fi
+reset_ledger
+
+t "was_previously_trusted: matches scope (any hash) for in-repo file"
+make_repo_fixture "${TMP}/was-prev"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Change file content → different hash → no longer is_trusted, but
+# was_previously_trusted should still return 0.
+echo "tool python" > "${fixture_repo}/.xclaude"
+if __xsandbox_was_previously_trusted "${fixture_repo}/.xclaude"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — was_previously_trusted should match scope" >&2
+fi
+reset_ledger
+
+t "was_previously_trusted: matches via worktree scope when only main was trusted"
+make_repo_fixture "${TMP}/was-prev-wt"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# Diverge worktree
+echo "tool python" > "${fixture_worktree}/.xclaude"
+if __xsandbox_was_previously_trusted "${fixture_worktree}/.xclaude"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — worktree should match prev-trusted via shared scope" >&2
+fi
+reset_ledger
+
+# ── Scope-aware pack ledger ────────────────────────────────
+echo ""
+echo "=== Scope-aware pack ledger ==="
+
+reset_ledger
+
+t "pack trusted in main covers worktree at same project content"
+make_repo_fixture "${TMP}/pack-share"
+pack_file="${__xsandbox_packs_dir}/devp"
+echo "allow-read ~/.config/devp" > "$pack_file"
+__xsandbox_trust_pack_for_project "$pack_file" "${fixture_repo}/.xclaude"
+# Worktree's project config has same content — same scope → same pack trust
+if __xsandbox_is_pack_trusted_for_project "$pack_file" "${fixture_worktree}/.xclaude"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — worktree pack trust should follow project scope" >&2
+fi
+reset_ledger
+
+t "trust_pack writes new repo-scoped pack format"
+make_repo_fixture "${TMP}/pack-format"
+pack_file="${__xsandbox_packs_dir}/alphap"
+echo "allow-read ~/.config/alphap" > "$pack_file"
+__xsandbox_trust_pack_for_project "$pack_file" "${fixture_repo}/.xclaude"
+hash="$(__xsandbox_file_hash "$pack_file")"
+expected_line="${hash} # repo:${fixture_repo_id} pack alphap @ ${fixture_repo}/.xclaude"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — expected line not found:" >&2
+  echo "  expected: $expected_line" >&2
+  cat "$__xsandbox_trusted_file" >&2
+fi
+reset_ledger
+
+t "trust_pack writes path-scoped format for non-git project"
+non_git_proj_dir="${TMP}/non-git-pack-proj"
+mkdir -p "$non_git_proj_dir"
+non_git_proj="${non_git_proj_dir}/.xclaude"
+echo "pack betap" > "$non_git_proj"
+pack_file="${__xsandbox_packs_dir}/betap"
+echo "allow-read ~/.config/betap" > "$pack_file"
+__xsandbox_trust_pack_for_project "$pack_file" "$non_git_proj"
+hash="$(__xsandbox_file_hash "$pack_file")"
+resolved_proj="$(readlink -f "$non_git_proj")"
+expected_line="${hash} # path:${resolved_proj} pack betap"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — expected line not found:" >&2
+  echo "  expected: $expected_line" >&2
+  cat "$__xsandbox_trusted_file" >&2
+fi
+reset_ledger
+
+t "legacy pack entry honored at original project_config path"
+pack_file="${__xsandbox_packs_dir}/legp"
+echo "allow-read ~/.config/legp" > "$pack_file"
+legacy_proj_dir="${TMP}/legacy-pack-proj"
+mkdir -p "$legacy_proj_dir"
+legacy_proj="${legacy_proj_dir}/.xclaude"
+echo "pack legp" > "$legacy_proj"
+hash="$(__xsandbox_file_hash "$pack_file")"
+mkdir -p "$__xsandbox_trust_dir"
+echo "${hash} # ${legacy_proj} pack legp" > "$__xsandbox_trusted_file"
+if __xsandbox_is_pack_trusted_for_project "$pack_file" "$legacy_proj"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy pack entry not honored" >&2
+fi
+reset_ledger
+
+t "legacy pack entry honored when project is in git repo"
+make_repo_fixture "${TMP}/legacy-pack-git"
+pack_file="${__xsandbox_packs_dir}/gammap"
+echo "allow-read ~/.config/gammap" > "$pack_file"
+proj_path="${fixture_repo}/.xclaude"
+hash="$(__xsandbox_file_hash "$pack_file")"
+mkdir -p "$__xsandbox_trust_dir"
+echo "${hash} # ${proj_path} pack gammap" > "$__xsandbox_trusted_file"
+if __xsandbox_is_pack_trusted_for_project "$pack_file" "$proj_path"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy pack entry must work for in-repo project" >&2
+fi
+reset_ledger
+
+t "trust_pack cleans up legacy pack entry for same project_config"
+make_repo_fixture "${TMP}/pack-cleanup"
+pack_file="${__xsandbox_packs_dir}/deltap"
+echo "allow-read ~/.config/deltap" > "$pack_file"
+proj_path="${fixture_repo}/.xclaude"
+hash="$(__xsandbox_file_hash "$pack_file")"
+mkdir -p "$__xsandbox_trust_dir"
+echo "${hash} # ${proj_path} pack deltap" > "$__xsandbox_trusted_file"
+__xsandbox_trust_pack_for_project "$pack_file" "$proj_path"
+if grep -qxF "${hash} # ${proj_path} pack deltap" "$__xsandbox_trusted_file"; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — legacy pack entry not removed" >&2
+else
+  __pass=$((__pass + 1))
+fi
+expected_line="${hash} # repo:${fixture_repo_id} pack deltap @ ${proj_path}"
+if grep -qxF "$expected_line" "$__xsandbox_trusted_file"; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — new pack format entry missing" >&2
+fi
+reset_ledger
+
+t "check_trust on worktree silently approves after trusting main"
+make_repo_fixture "${TMP}/check-trust-wt"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+# An empty stdin would deny if a prompt fired — silence proves no prompt.
+out="$(__xsandbox_check_trust "${fixture_worktree}/.xclaude" 2>&1 </dev/null)"
+rc=$?
+assert_eq "0" "$rc"
+assert_eq "" "$out"
+reset_ledger
+
+t "check_trust on diverged worktree shows 'config changed' diff"
+make_repo_fixture "${TMP}/check-trust-diverge"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+echo "tool python" > "${fixture_worktree}/.xclaude"
+# 'y' to approve the divergence
+__xsandbox_check_trust "${fixture_worktree}/.xclaude" 2>"${TMP}/stderr" >/dev/null <<< "y"
+rc=$?
+out="$(< "${TMP}/stderr")"
+assert_eq "0" "$rc"
+assert_contains "config changed" "$out"
+assert_contains "--- trusted" "$out"
+reset_ledger
+
+t "__xsandbox_assemble: worktree project shares trust with main"
+make_repo_fixture "${TMP}/assemble-wt"
+# Trust main first
+__xsandbox_assemble "$fixture_repo" >/dev/null 2>"${TMP}/stderr" <<< "y"
+rc1=$?
+assert_eq "0" "$rc1"
+# Now assemble from the worktree — should be silent (no prompt)
+out="$(__xsandbox_assemble "$fixture_worktree" 2>&1 </dev/null)"
+rc2=$?
+assert_eq "0" "$rc2"
+# Output should NOT contain a trust prompt
+if [[ "$out" == *"allow this config?"* ]]; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — assemble re-prompted on worktree" >&2
+else
+  __pass=$((__pass + 1))
+fi
+reset_ledger
+
+t "different repo same pack: prompts independently (no cross-repo trust)"
+make_repo_fixture "${TMP}/pack-isolation-a"
+proj_a="${fixture_repo}/.xclaude"
+pack_file="${__xsandbox_packs_dir}/isop"
+echo "allow-read ~/.config/isop" > "$pack_file"
+__xsandbox_trust_pack_for_project "$pack_file" "$proj_a"
+# Save first repo's id
+first_repo_id="$fixture_repo_id"
+# Make a totally separate repo
+make_repo_fixture "${TMP}/pack-isolation-b"
+proj_b="${fixture_repo}/.xclaude"
+if __xsandbox_is_pack_trusted_for_project "$pack_file" "$proj_b"; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — pack trust must not cross repos" >&2
+else
+  __pass=$((__pass + 1))
 fi
 reset_ledger
 

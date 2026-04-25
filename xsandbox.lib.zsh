@@ -241,42 +241,89 @@ __xsandbox_file_hash() {
   shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
 }
 
+# Trust scope: a stable identity for "where this config lives" so trust can
+# follow the project, not the absolute file path. Inside a git working tree
+# the scope is the resolved git-common-dir (shared by main repo and all
+# worktrees). Outside git it falls back to the resolved file path.
+#
+#   in repo:    repo:/abs/path/to/.git
+#   not in repo: path:/abs/path/to/file
+__xsandbox_trust_scope() {
+  __xsandbox_sync_defaults
+  local file="$1"
+  local dir="${file:h}"
+  local common_dir
+  if common_dir="$(git -C "$dir" rev-parse --git-common-dir 2>/dev/null)"; then
+    case "$common_dir" in
+      /*) common_dir="$(readlink -f "$common_dir")" ;;
+      *)  common_dir="$(readlink -f "${dir}/${common_dir}")" ;;
+    esac
+    echo "repo:${common_dir}"
+  else
+    echo "path:$(readlink -f "$file")"
+  fi
+}
+
 __xsandbox_path_key() {
   echo -n "$1" | shasum -a 256 | cut -d' ' -f1
 }
 
-# Snapshot key for a (project, pack) pair. Trust is scoped to this tuple —
-# approving pack 'dev' in project A does NOT approve it in project B even
-# at the same hash. The compound key guarantees independent snapshots in
-# trusted.d/ so diff rendering remains correct per-project.
+# Snapshot key for a (project, pack) pair. Keyed on the project's trust
+# scope (repo: or path:) so worktrees of the same repo share pack trust
+# while unrelated projects remain independent. Different name from the
+# legacy key (`__xsandbox_pack_key_legacy`) so check_pack_trust can fall
+# back to the old key during migration.
 __xsandbox_pack_key() {
+  local pack_file="$1" project_config="$2"
+  local pack_name="${pack_file##*/}"
+  local scope="$(__xsandbox_trust_scope "$project_config")"
+  echo -n "${scope}|pack|${pack_name}" | shasum -a 256 | cut -d' ' -f1
+}
+
+__xsandbox_pack_key_legacy() {
   local pack_file="$1" project_config="$2"
   local pack_name="${pack_file##*/}"
   echo -n "${project_config}|pack|${pack_name}" | shasum -a 256 | cut -d' ' -f1
 }
 
+# Trust ledger entry formats:
+#   in-repo:  "<hash> # repo:<git_common_dir> @ <file_path>"
+#   non-git:  "<hash> # path:<resolved_file_path>"
+#   legacy:   "<hash> # <file_path>"     (read-only compat; trust() rewrites)
+#
+# Lookup matches all three. trust() always writes the new format and removes
+# any prior entry for the same scope OR for the legacy file path so the
+# ledger stays a single source of truth as users upgrade.
+
 __xsandbox_is_trusted() {
   __xsandbox_sync_defaults
-  # Line-exact match on "<hash> # <file>". Avoids regex metacharacter
-  # interpretation of the file path (e.g. '.' as any-char) and collisions
-  # with unrelated entries (pack entries, other projects) whose lines
-  # happen to share a prefix.
-  local file="$1" hash expected line
+  local file="$1" hash scope new_exact new_prefix legacy_exact line
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
   hash="$(__xsandbox_file_hash "$file")"
-  expected="${hash} # ${file}"
+  scope="$(__xsandbox_trust_scope "$file")"
+  new_exact="${hash} # ${scope}"
+  new_prefix="${hash} # ${scope} @ "
+  legacy_exact="${hash} # ${file}"
   while IFS= read -r line; do
-    [[ "$line" = "$expected" ]] && return 0
+    [[ "$line" = "$new_exact" ]] && return 0
+    [[ "$line" = "${new_prefix}"* ]] && return 0
+    [[ "$line" = "$legacy_exact" ]] && return 0
   done < "$__xsandbox_trusted_file"
   return 1
 }
 
 __xsandbox_was_previously_trusted() {
   __xsandbox_sync_defaults
-  local file="$1" suffix=" # ${file}" line
+  local file="$1" scope new_exact_suffix new_substr legacy_suffix line
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
+  scope="$(__xsandbox_trust_scope "$file")"
+  new_exact_suffix=" # ${scope}"
+  new_substr=" # ${scope} @ "
+  legacy_suffix=" # ${file}"
   while IFS= read -r line; do
-    [[ "$line" = *"$suffix" ]] && return 0
+    [[ "$line" = *"$new_substr"* ]] && return 0
+    [[ "$line" = *"$new_exact_suffix" ]] && return 0
+    [[ "$line" = *"$legacy_suffix" ]] && return 0
   done < "$__xsandbox_trusted_file"
   return 1
 }
@@ -286,25 +333,40 @@ __xsandbox_trust() {
   local file="$1"
   mkdir -p "$__xsandbox_trust_dir" "$__xsandbox_trusted_copies"
   local hash="$(__xsandbox_file_hash "$file")"
-  local suffix=" # ${file}" line
+  local scope="$(__xsandbox_trust_scope "$file")"
+  local new_exact_suffix=" # ${scope}"
+  local new_substr=" # ${scope} @ "
+  local legacy_suffix=" # ${file}"
+  local entry
+  case "$scope" in
+    # Repo scope: include @ <file> tail so the entry shows where the file lived.
+    repo:*) entry="${hash} # ${scope} @ ${file}" ;;
+    # Path scope: file path is already in the scope key — no redundant tail.
+    *)      entry="${hash} # ${scope}" ;;
+  esac
   if [[ -f "$__xsandbox_trusted_file" ]]; then
     : > "${__xsandbox_trusted_file}.tmp"
+    local line
     while IFS= read -r line; do
-      [[ "$line" = *"$suffix" ]] && continue
+      [[ "$line" = *"$new_substr"* ]]      && continue   # drop in-repo entries for this scope
+      [[ "$line" = *"$new_exact_suffix" ]] && continue   # drop path-scope entries for this scope
+      [[ "$line" = *"$legacy_suffix" ]]    && continue   # drop legacy entry for this exact path
       printf '%s\n' "$line" >> "${__xsandbox_trusted_file}.tmp"
     done < "$__xsandbox_trusted_file"
     mv "${__xsandbox_trusted_file}.tmp" "$__xsandbox_trusted_file"
   fi
-  echo "${hash} # ${file}" >> "$__xsandbox_trusted_file"
-  cp "$file" "${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$file")"
+  echo "$entry" >> "$__xsandbox_trusted_file"
+  cp "$file" "${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$scope")"
 }
 
-# Pack trust ledger entry format:
-#   <pack_hash> # <project_config_path> pack <pack_name>
+# Pack trust ledger entry formats:
+#   in-repo:  "<pack_hash> # repo:<git_common_dir> pack <pack_name> @ <project_config>"
+#   non-git:  "<pack_hash> # path:<resolved_project_config> pack <pack_name>"
+#   legacy:  "<pack_hash> # <project_config> pack <pack_name>"
 #
-# Keyed on (project_config_path, pack_name) so re-running a project that
-# already approved the pack at its current hash is silent; another project
-# referencing the same pack file prompts independently.
+# Scope = trust_scope(project_config). Sharing follows the project: worktrees
+# of the same repo inherit pack trust at the same content hash; different
+# repos always re-prompt.
 
 __xsandbox_is_pack_trusted_for_project() {
   __xsandbox_sync_defaults
@@ -312,9 +374,15 @@ __xsandbox_is_pack_trusted_for_project() {
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
   local hash="$(__xsandbox_file_hash "$pack_file")"
   local pack_name="${pack_file##*/}"
-  local expected="${hash} # ${project_config} pack ${pack_name}" line
+  local scope="$(__xsandbox_trust_scope "$project_config")"
+  local new_exact="${hash} # ${scope} pack ${pack_name}"
+  local new_prefix="${hash} # ${scope} pack ${pack_name} @ "
+  local legacy_exact="${hash} # ${project_config} pack ${pack_name}"
+  local line
   while IFS= read -r line; do
-    [[ "$line" = "$expected" ]] && return 0
+    [[ "$line" = "$new_exact" ]]      && return 0
+    [[ "$line" = "${new_prefix}"* ]]  && return 0
+    [[ "$line" = "$legacy_exact" ]]   && return 0
   done < "$__xsandbox_trusted_file"
   return 1
 }
@@ -324,9 +392,15 @@ __xsandbox_was_pack_previously_trusted_for_project() {
   local pack_file="$1" project_config="$2"
   [[ ! -f "$__xsandbox_trusted_file" ]] && return 1
   local pack_name="${pack_file##*/}"
-  local suffix=" # ${project_config} pack ${pack_name}" line
+  local scope="$(__xsandbox_trust_scope "$project_config")"
+  local new_exact_suffix=" # ${scope} pack ${pack_name}"
+  local new_substr=" # ${scope} pack ${pack_name} @ "
+  local legacy_suffix=" # ${project_config} pack ${pack_name}"
+  local line
   while IFS= read -r line; do
-    [[ "$line" = *"$suffix" ]] && return 0
+    [[ "$line" = *"$new_substr"* ]]      && return 0
+    [[ "$line" = *"$new_exact_suffix" ]] && return 0
+    [[ "$line" = *"$legacy_suffix" ]]    && return 0
   done < "$__xsandbox_trusted_file"
   return 1
 }
@@ -337,16 +411,27 @@ __xsandbox_trust_pack_for_project() {
   mkdir -p "$__xsandbox_trust_dir" "$__xsandbox_trusted_copies"
   local hash="$(__xsandbox_file_hash "$pack_file")"
   local pack_name="${pack_file##*/}"
-  local suffix=" # ${project_config} pack ${pack_name}" line
+  local scope="$(__xsandbox_trust_scope "$project_config")"
+  local new_exact_suffix=" # ${scope} pack ${pack_name}"
+  local new_substr=" # ${scope} pack ${pack_name} @ "
+  local legacy_suffix=" # ${project_config} pack ${pack_name}"
+  local entry
+  case "$scope" in
+    repo:*) entry="${hash} # ${scope} pack ${pack_name} @ ${project_config}" ;;
+    *)      entry="${hash} # ${scope} pack ${pack_name}" ;;
+  esac
   if [[ -f "$__xsandbox_trusted_file" ]]; then
     : > "${__xsandbox_trusted_file}.tmp"
+    local line
     while IFS= read -r line; do
-      [[ "$line" = *"$suffix" ]] && continue
+      [[ "$line" = *"$new_substr"* ]]      && continue
+      [[ "$line" = *"$new_exact_suffix" ]] && continue
+      [[ "$line" = *"$legacy_suffix" ]]    && continue
       printf '%s\n' "$line" >> "${__xsandbox_trusted_file}.tmp"
     done < "$__xsandbox_trusted_file"
     mv "${__xsandbox_trusted_file}.tmp" "$__xsandbox_trusted_file"
   fi
-  echo "${hash} # ${project_config} pack ${pack_name}" >> "$__xsandbox_trusted_file"
+  echo "$entry" >> "$__xsandbox_trusted_file"
   cp "$pack_file" "${__xsandbox_trusted_copies}/$(__xsandbox_pack_key "$pack_file" "$project_config")"
 }
 
@@ -508,7 +593,13 @@ __xsandbox_check_trust() {
   [[ ! -f "$file" ]] && return 0
   __xsandbox_is_trusted "$file" && return 0
 
-  local trusted_copy="${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$file")"
+  local scope="$(__xsandbox_trust_scope "$file")"
+  local trusted_copy="${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$scope")"
+  # Fall back to the legacy snapshot key (hash of the file path) so users
+  # upgrading from a path-keyed ledger still see a diff on the first re-trust.
+  if [[ ! -f "$trusted_copy" ]]; then
+    trusted_copy="${__xsandbox_trusted_copies}/$(__xsandbox_path_key "$file")"
+  fi
 
   if __xsandbox_was_previously_trusted "$file" && [[ -f "$trusted_copy" ]]; then
     __xsandbox_log "config changed: ${file}"
@@ -562,6 +653,10 @@ __xsandbox_check_pack_trust() {
   fi
 
   local snapshot="${__xsandbox_trusted_copies}/$(__xsandbox_pack_key "$pack_file" "$project_config")"
+  # Legacy snapshot fallback for users upgrading from path-keyed pack trust.
+  if [[ ! -f "$snapshot" ]]; then
+    snapshot="${__xsandbox_trusted_copies}/$(__xsandbox_pack_key_legacy "$pack_file" "$project_config")"
+  fi
 
   if __xsandbox_was_pack_previously_trusted_for_project "$pack_file" "$project_config" && [[ -f "$snapshot" ]]; then
     __xsandbox_log "pack changed: ${pack_name} (for ${project_config})"

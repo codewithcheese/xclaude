@@ -85,6 +85,8 @@ When a project has a `.xclaude` config, xclaude computes its sha256 hash and che
 
 Approved hashes live in `~/.config/xclaude/trusted`; copies of approved configs in `~/.config/xclaude/trusted.d/` (used to render diffs).
 
+Trust is keyed on the repository's git common directory when the config lives inside a git working tree, otherwise on the resolved file path. This means **all worktrees of the same repository share trust**: approving `.xclaude` in the main checkout silently covers any worktree at the same content hash. A worktree on a branch with a diverged `.xclaude` re-prompts (different hash → different decision); an unrelated clone with identical content also re-prompts (different repo). Legacy path-keyed ledger entries continue to be honored until they are next re-trusted.
+
 The user-level config (`~/.config/xclaude/config`) is **not** trust-gated — you own that file and edits take effect on the next launch.
 
 Rejection is fatal: denying a config (or any pack it references — see [Packs](#packs)) exits xclaude without launching Claude. There is no base-only fallback — reject means edit and retry, not run with less.
