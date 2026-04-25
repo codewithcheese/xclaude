@@ -873,6 +873,51 @@ expected_rule="(allow file-read-data (subpath \"${__main_resolved}\"))"
 assert_contains "$expected_rule" "$out"
 reset_ledger
 
+t "assemble in linked worktree adds write grant for main's .git"
+make_repo_fixture "${TMP}/wt-git-write"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+out="$(__xsandbox_assemble "$fixture_worktree" 2>/dev/null </dev/null)"
+__main_resolved="$(readlink -f "$fixture_repo")"
+expected_allow="(allow file-write* (subpath \"${__main_resolved}/.git\"))"
+expected_deny_hooks="(deny file-write* (subpath \"${__main_resolved}/.git/hooks\"))"
+expected_deny_config="(deny file-write* (literal \"${__main_resolved}/.git/config\"))"
+assert_contains "$expected_allow" "$out"
+assert_contains "$expected_deny_hooks" "$out"
+assert_contains "$expected_deny_config" "$out"
+reset_ledger
+
+t "assemble in linked worktree: deny rules come AFTER allow (last-match-wins)"
+make_repo_fixture "${TMP}/wt-git-order"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+out="$(__xsandbox_assemble "$fixture_worktree" 2>/dev/null </dev/null)"
+__main_resolved="$(readlink -f "$fixture_repo")"
+allow_pos=$(echo "$out" | awk -v p="(allow file-write* (subpath \"${__main_resolved}/.git\"))" '{ if (index($0, p)) { print NR; exit } }')
+deny_hooks_pos=$(echo "$out" | awk -v p="(deny file-write* (subpath \"${__main_resolved}/.git/hooks\"))" '{ if (index($0, p)) { print NR; exit } }')
+deny_config_pos=$(echo "$out" | awk -v p="(deny file-write* (literal \"${__main_resolved}/.git/config\"))" '{ if (index($0, p)) { print NR; exit } }')
+if [[ -n "$allow_pos" && -n "$deny_hooks_pos" && -n "$deny_config_pos" \
+     && "$deny_hooks_pos" -gt "$allow_pos" \
+     && "$deny_config_pos" -gt "$allow_pos" ]]; then
+  __pass=$((__pass + 1))
+else
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — allow=$allow_pos deny_hooks=$deny_hooks_pos deny_config=$deny_config_pos" >&2
+fi
+reset_ledger
+
+t "assemble in main checkout does NOT add .git write grant"
+make_repo_fixture "${TMP}/wt-no-git-main"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+out="$(__xsandbox_assemble "$fixture_repo" 2>/dev/null </dev/null)"
+__main_resolved="$(readlink -f "$fixture_repo")"
+unwanted_rule="(allow file-write* (subpath \"${__main_resolved}/.git\"))"
+if [[ "$out" == *"$unwanted_rule"* ]]; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — main checkout should not get worktree .git write grant" >&2
+else
+  __pass=$((__pass + 1))
+fi
+reset_ledger
+
 t "assemble in main checkout does NOT add main-worktree read grant"
 make_repo_fixture "${TMP}/wt-no-grant-main"
 __xsandbox_trust "${fixture_repo}/.xclaude"

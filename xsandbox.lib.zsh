@@ -756,6 +756,15 @@ __xsandbox_assemble() {
     assembled+=$'\n\n;; ============================================================'
     assembled+=$'\n;; Linked worktree: read grant for main checkout\n;; ============================================================'
     assembled+=$'\n(allow file-read-data (subpath "'"${main_worktree}"$'"))'
+    # Git operations from a linked worktree write to the shared .git/
+    # (per-worktree state under worktrees/<name>/, plus shared objects/,
+    # refs/, logs/). Allow that, but deny hooks/ and config — those are
+    # privilege-escalation paths (hook scripts run on next git op in main;
+    # config can redirect remotes). Deny-after-allow uses last-match-wins.
+    assembled+=$'\n;; --- shared .git/ writes (minus hooks/ and config) ---'
+    assembled+=$'\n(allow file-write* (subpath "'"${common_dir}"$'"))'
+    assembled+=$'\n(deny file-write* (subpath "'"${common_dir}"$'/hooks"))'
+    assembled+=$'\n(deny file-write* (literal "'"${common_dir}"$'/config"))'
   fi
 
   if [[ -f "$__xsandbox_user_config" ]]; then
