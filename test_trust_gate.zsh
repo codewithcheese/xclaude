@@ -863,6 +863,41 @@ else
 fi
 reset_ledger
 
+t "assemble in linked worktree adds read grant for main checkout"
+make_repo_fixture "${TMP}/wt-read-grant"
+# Trust main first so worktree assemble runs silently (and inherits trust).
+__xsandbox_trust "${fixture_repo}/.xclaude"
+out="$(__xsandbox_assemble "$fixture_worktree" 2>/dev/null </dev/null)"
+__main_resolved="$(readlink -f "$fixture_repo")"
+expected_rule="(allow file-read-data (subpath \"${__main_resolved}\"))"
+assert_contains "$expected_rule" "$out"
+reset_ledger
+
+t "assemble in main checkout does NOT add main-worktree read grant"
+make_repo_fixture "${TMP}/wt-no-grant-main"
+__xsandbox_trust "${fixture_repo}/.xclaude"
+out="$(__xsandbox_assemble "$fixture_repo" 2>/dev/null </dev/null)"
+__main_resolved="$(readlink -f "$fixture_repo")"
+unwanted_rule="(allow file-read-data (subpath \"${__main_resolved}\"))"
+if [[ "$out" == *"$unwanted_rule"* ]]; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — main checkout should not auto-grant itself" >&2
+else
+  __pass=$((__pass + 1))
+fi
+reset_ledger
+
+t "assemble outside git repo does NOT add main-worktree read grant"
+non_git_dir="${TMP}/wt-non-git"
+mkdir -p "$non_git_dir"
+out="$(__xsandbox_assemble "$non_git_dir" 2>/dev/null </dev/null)"
+if [[ "$out" == *"Linked worktree"* ]]; then
+  __fail=$((__fail + 1))
+  echo "FAIL: ${__name} — non-git project should not get worktree section" >&2
+else
+  __pass=$((__pass + 1))
+fi
+
 t "different repo same pack: prompts independently (no cross-repo trust)"
 make_repo_fixture "${TMP}/pack-isolation-a"
 proj_a="${fixture_repo}/.xclaude"

@@ -87,6 +87,8 @@ Approved hashes live in `~/.config/xclaude/trusted`; copies of approved configs 
 
 Trust is keyed on the repository's git common directory when the config lives inside a git working tree, otherwise on the resolved file path. This means **all worktrees of the same repository share trust**: approving `.xclaude` in the main checkout silently covers any worktree at the same content hash. A worktree on a branch with a diverged `.xclaude` re-prompts (different hash → different decision); an unrelated clone with identical content also re-prompts (different repo). Legacy path-keyed ledger entries continue to be honored until they are next re-trusted.
 
+When xclaude runs from a **linked git worktree**, it auto-grants `file-read-data` on the main checkout. This makes `git -C <main>`, cross-branch diffs, and reading sibling files work without per-worktree config. Writes stay scoped to the worktree's `PROJECT_DIR` — the main checkout remains read-only from inside the worktree. (A future per-worktree config knob could opt out of this grant for stricter isolation; not currently exposed.)
+
 The user-level config (`~/.config/xclaude/config`) is **not** trust-gated — you own that file and edits take effect on the next launch.
 
 Rejection is fatal: denying a config (or any pack it references — see [Packs](#packs)) exits xclaude without launching Claude. There is no base-only fallback — reject means edit and retry, not run with less.

@@ -732,6 +732,32 @@ __xsandbox_assemble() {
 
   assembled="$(__xsandbox_read_base_profile)"
 
+  # Linked git worktree: auto-grant read on the main checkout so tools like
+  # `git -C <main>`, branch comparison, and reading sibling files work from
+  # inside the worktree. Writes stay scoped to the worktree's PROJECT_DIR.
+  # Skipped for main checkouts (already covered by PROJECT_DIR) and bare
+  # repos (no main worktree). Per-worktree opt-out is a future config knob.
+  local common_dir main_worktree project_dir_resolved
+  project_dir_resolved="$(readlink -f "$project_dir")"
+  if common_dir="$(git -C "$project_dir" rev-parse --git-common-dir 2>/dev/null)"; then
+    case "$common_dir" in
+      /*) ;;
+      *)  common_dir="${project_dir}/${common_dir}" ;;
+    esac
+    common_dir="$(readlink -f "$common_dir")"
+    if [[ "$common_dir" = */.git ]]; then
+      local candidate="${common_dir%/.git}"
+      if [[ -d "$candidate" && "$candidate" != "$project_dir_resolved" ]]; then
+        main_worktree="$candidate"
+      fi
+    fi
+  fi
+  if [[ -n "$main_worktree" ]]; then
+    assembled+=$'\n\n;; ============================================================'
+    assembled+=$'\n;; Linked worktree: read grant for main checkout\n;; ============================================================'
+    assembled+=$'\n(allow file-read-data (subpath "'"${main_worktree}"$'"))'
+  fi
+
   if [[ -f "$__xsandbox_user_config" ]]; then
     generated="$(__xsandbox_parse "$__xsandbox_user_config" | __xsandbox_validate user | __xsandbox_generate)" || return 1
     if [[ -n "$generated" ]]; then
