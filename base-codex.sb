@@ -2,10 +2,18 @@
 ;; Codex-specific process execution
 ;; ============================================================
 (allow process-exec
-  ;; User-local binaries are common install targets for Codex CLI
+  ;; Direct release installs are commonly renamed to codex in ~/.local/bin.
   (subpath (string-append (param "HOME") "/.local/bin"))
-  ;; Current install location on this machine via NVM
-  (subpath (string-append (param "HOME") "/.nvm")))
+  ;; npm installs under NVM use a JS launcher that spawns a vendored native binary.
+  (subpath (string-append (param "HOME") "/.nvm"))
+  ;; bun global installs use the same JS launcher/native-binary package shape.
+  (subpath (string-append (param "HOME") "/.bun"))
+  ;; Intel Homebrew cask installs symlink /usr/local/bin/codex to Caskroom.
+  (literal "/usr/local/bin/codex")
+  (subpath "/usr/local/Caskroom/codex")
+  ;; Intel npm global installs use /usr/local/bin/node plus @openai/codex.
+  (literal "/usr/local/bin/node")
+  (subpath "/usr/local/lib/node_modules/@openai/codex"))
 
 ;; ============================================================
 ;; Codex-specific read permissions
@@ -13,8 +21,17 @@
 
 ;; Codex CLI binary locations
 (allow file-read-data
+  ;; Direct release installs are commonly renamed to codex in ~/.local/bin.
   (subpath (string-append (param "HOME") "/.local/bin"))
-  (subpath (string-append (param "HOME") "/.nvm")))
+  ;; npm installs under NVM use a JS launcher and vendored native binary.
+  (subpath (string-append (param "HOME") "/.nvm"))
+  ;; bun global installs use ~/.bun/bin and ~/.bun/install/global.
+  (subpath (string-append (param "HOME") "/.bun"))
+  ;; Intel Homebrew cask and npm global install targets.
+  (literal "/usr/local/bin/codex")
+  (literal "/usr/local/bin/node")
+  (subpath "/usr/local/Caskroom/codex")
+  (subpath "/usr/local/lib/node_modules/@openai/codex"))
 
 ;; Codex config, auth, sessions, plugins, skills, and logs
 (allow file-read-data
@@ -31,6 +48,6 @@
   ;; Codex state, auth, session persistence, plugin cache, logs
   (subpath (string-append (param "HOME") "/.codex")))
 
-;; Sandbox config — prevents privilege escalation on next launch
+;; Shared project sandbox config — prevents privilege escalation on next launch
 (deny file-write*
-  (literal (string-append (param "PROJECT_DIR") "/.xcodex")))
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))

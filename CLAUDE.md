@@ -71,6 +71,7 @@ All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude
 | `CACHE_DIR` | `/private/var/folders/.../C/` (sibling of TMPDIR) |
 | `VOLATILE_DIR` | `/private/var/folders/.../X/` (sibling of TMPDIR, code-signing clones) |
 | `XCLAUDE_DIR` | Absolute path of the xclaude installation (where `xclaude` lives) |
+| `XCODEX_DIR` | Absolute path of the xclaude installation when launched via `xcodex` |
 
 Use `(param "NAME")` in SBPL — never hardcode paths.
 
@@ -83,8 +84,29 @@ xclaude sets these env vars for processes inside the sandbox:
 | `XCLAUDE_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the sandbox |
 | `XCLAUDE_DENIAL_LOG` | Path to denial log file | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
+| `XCODEX_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the Codex sandbox |
 
 To check if running inside xclaude: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
+To check if running inside xcodex: `[[ "${XCODEX_ACTIVE:-}" == "1" ]]`.
+
+## Codex support
+
+`xcodex` uses the same shared DSL, trust gate, packs, and assembler as `xclaude`, but with Codex-specific user-level config and base profile:
+
+- Project config: `.xclaude` (shared with `xclaude`; name may become generic later)
+- User config: `~/.config/xcodex/config`
+- Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
+- Trust ledger: `~/.config/xcodex/trusted`
+- Base fragments: `base-common.sb` + `base-codex.sb`
+
+`xcodex` resolves the `codex` executable before entering Seatbelt and launches it with `--dangerously-bypass-approvals-and-sandbox`; the outer `sandbox-exec` profile is the sandbox boundary. Keep Codex plugin/hook behavior out of scope until there is a deliberate design for it.
+
+Current Codex install layouts covered by `base-codex.sb`:
+
+- Direct release binary renamed to `~/.local/bin/codex`
+- npm install under NVM, including the vendored native binary under `@openai/codex`
+- bun global install under `~/.bun`
+- Homebrew cask/global npm under `/opt/homebrew` or `/usr/local`
 
 ## SBPL rules to know
 
@@ -247,12 +269,16 @@ zsh test_sandbox.zsh --toolchain node,uv
 
 # With a custom project config
 zsh test_sandbox.zsh --with-config path/to/.xclaude
+
+# Codex base-profile integration
+zsh test_xcodex_sandbox.zsh
 ```
 
 ### Test structure
 
 - `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude.lib.zsh` since they use zsh syntax. If you change the DSL logic in `xclaude.lib.zsh`, update the corresponding functions in `test_xclaude.bash` too.
-- `test_sandbox.zsh` — tests real `sandbox-exec` enforcement. Runs base profile tests (reads, writes, exec, escape vectors), then auto-discovers and runs `toolchains/*.test.zsh`.
+- `test_sandbox.zsh` — tests real `sandbox-exec` enforcement for the Claude base profile. Runs base profile tests (reads, writes, exec, escape vectors), then auto-discovers and runs `toolchains/*.test.zsh`.
+- `test_xcodex_sandbox.zsh` — tests real `sandbox-exec` enforcement for the Codex base profile and verifies current Codex can start when installed.
 - `toolchains/*.test.zsh` — each file sources `test_helpers.zsh` and tests one toolchain. Creates fixture dirs, verifies access, checks tool usability if installed.
 
 ### Test helpers reference

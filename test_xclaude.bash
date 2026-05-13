@@ -241,7 +241,7 @@ __xclaude_assemble() {
 __xcodex_validate() {
   local source="${1:-project}"
   local line verb arg toolchains_dir="${__xclaude_dir}/toolchains"
-  local packs_dir="${HOME}/.config/xcodex/packs"
+  local packs_dir="${HOME}/.config/xclaude/packs"
   while IFS= read -r line; do
     verb="${line%% *}"
     arg="${line#* }"
@@ -314,8 +314,8 @@ __xcodex_validate() {
             ;;
         esac
         local basename="${arg##*/}"
-        if [[ "$basename" = ".xcodex" ]]; then
-          echo "xcodex: cannot target '.xcodex' — sandbox config is protected" >&2
+        if [[ "$basename" = ".xclaude" ]]; then
+          echo "xcodex: cannot target '.xclaude' — sandbox config is protected" >&2
           return 1
         fi
         echo "$line"
@@ -329,7 +329,7 @@ __xcodex_assemble() {
   local base_common="${__xclaude_dir}/base-common.sb"
   local base_profile="${__xclaude_dir}/base-codex.sb"
   local user_config="${HOME}/.config/xcodex/config"
-  local project_config="${project_dir}/.xcodex"
+  local project_config="${project_dir}/.xclaude"
   local assembled generated
 
   assembled="$(cat "$base_common" "$base_profile")"
@@ -348,7 +348,7 @@ __xcodex_assemble() {
     generated="$(__xclaude_parse "$project_config" | __xcodex_validate project | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
-      assembled+=$'\n;; Project config: .xcodex'
+      assembled+=$'\n;; Project config: .xclaude'
       assembled+=$'\n;; ============================================================'
       assembled+="$generated"
     fi
@@ -749,14 +749,20 @@ else
   echo "  deny on line ${deny_line:-?}, allow on line ${allow_line:-?} — deny must come AFTER allow" >&2
 fi
 
-t "base-codex.sb denies writes to .xcodex"
+t "base-codex.sb denies writes to shared .xclaude"
 out="$(cat "${__xclaude_dir}/base-codex.sb")"
 assert_contains 'deny file-write' "$out"
-assert_contains '.xcodex' "$out"
+assert_contains '.xclaude' "$out"
 
 t "base-codex.sb allows Codex state"
 assert_contains '/.codex' "$out"
 assert_contains '/.nvm' "$out"
+
+t "base-codex.sb covers current standalone install layouts"
+assert_contains '/.local/bin' "$out"
+assert_contains '/.bun' "$out"
+assert_contains '/usr/local/Caskroom/codex' "$out"
+assert_contains '/usr/local/lib/node_modules/@openai/codex' "$out"
 
 # ── Path-to-SBPL tests ───────────────────────────────────────
 echo "=== Path-to-SBPL ==="
@@ -861,9 +867,9 @@ rm -rf "$proj_dir"
 
 t "xcodex assembly with project config includes toolchain"
 proj_dir="$(mktemp -d)"
-echo "tool node" > "${proj_dir}/.xcodex"
+echo "tool node" > "${proj_dir}/.xclaude"
 out="$(__xcodex_assemble "$proj_dir")"
-assert_contains 'Project config: .xcodex' "$out"
+assert_contains 'Project config: .xclaude' "$out"
 assert_contains 'toolchain: node' "$out"
 rm -rf "$proj_dir"
 

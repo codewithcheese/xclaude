@@ -12,7 +12,7 @@ __xcodex_sync() {
   __xsandbox_dir="${__xcodex_dir}"
   __xsandbox_base_profile="${__xcodex_dir}/base-codex.sb"
   __xsandbox_base_profiles=("${__xcodex_dir}/base-common.sb" "${__xcodex_dir}/base-codex.sb")
-  __xsandbox_config_name=".xcodex"
+  __xsandbox_config_name=".xclaude"
   : "${__xcodex_trust_dir:=${HOME}/.config/xcodex}"
   : "${__xcodex_trusted_file:=${__xcodex_trust_dir}/trusted}"
   : "${__xcodex_trusted_copies:=${__xcodex_trust_dir}/trusted.d}"
@@ -20,7 +20,7 @@ __xcodex_sync() {
   __xsandbox_trust_dir="${__xcodex_trust_dir}"
   __xsandbox_trusted_file="${__xcodex_trusted_file}"
   __xsandbox_trusted_copies="${__xcodex_trusted_copies}"
-  __xsandbox_packs_dir="${HOME}/.config/xcodex/packs"
+  __xsandbox_packs_dir="${HOME}/.config/xclaude/packs"
 }
 
 __xcodex_parse() { __xcodex_sync; __xsandbox_parse "$@"; }

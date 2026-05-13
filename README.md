@@ -8,6 +8,8 @@ By default Claude Code can read and write anywhere your shell can — including 
 
 xclaude replaces it with a hand-tuned Seatbelt profile that **defaults to strict deny**, lets you opt in to extra access via a tiny safe DSL, and ships with a Claude Code plugin so the agent helps you fix denials instead of working around them.
 
+For Codex CLI, `xcodex` uses the same outer Seatbelt boundary and starts Codex with `--dangerously-bypass-approvals-and-sandbox`. That disables Codex's own approval/sandbox layer because the OS sandbox assembled by xcodex is the enforcement boundary.
+
 ## What it protects
 
 The sandbox enforces **filesystem isolation only**. Network, IPC, and Mach ports are open — see [Known limitations](#known-limitations) for the trade-offs.
@@ -73,6 +75,12 @@ base.sb                       # core profile (always applied)
 sandbox-exec -f <assembled>   --   claude --dangerously-skip-permissions --plugin-dir <xclaude>
 ```
 
+For Codex the same flow uses `base-common.sb + base-codex.sb`, `~/.config/xcodex/config`, and the same project-level `./.xclaude` file, then launches:
+
+```sh
+sandbox-exec -f <assembled> -- codex --dangerously-bypass-approvals-and-sandbox
+```
+
 All layers are **additive**. The base profile starts with `(deny default)` and the DSL has no `deny` verb, so config files can only widen access — never narrow what the base profile already grants.
 
 The wrapper resolves all paths through `readlink -f` before passing them to `sandbox-exec` because Seatbelt resolves symlinks before matching rules.
@@ -97,13 +105,26 @@ Rejection is fatal: denying a config (or any pack it references — see [Packs](
 
 `xcodex` follows the same DSL and trust model, but uses Codex-specific defaults:
 
-- Project config: `.xcodex`
+- Project config: `.xclaude` (shared with `xclaude`)
 - User config: `~/.config/xcodex/config`
-- Packs: `~/.config/xcodex/packs/<name>`
+- Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
 - Trust ledger: `~/.config/xcodex/trusted`
 - Base fragments: `base-common.sb` + `base-codex.sb`
 
 Its base profile grants Codex access to `~/.codex` state and its current CLI install location under `~/.nvm`, instead of Claude-specific paths like `~/.claude` and `~/.local/share/claude`.
+
+The project config name is currently still `.xclaude` for both agents. The name may become more generic later, but the DSL rules are project/tool requirements and normally do not need to differ between Claude and Codex.
+
+Codex install layouts covered by the base profile:
+
+| Install layout | Covered paths |
+|---|---|
+| Direct release binary | `~/.local/bin/codex` |
+| npm under NVM | `~/.nvm/.../bin/codex` plus vendored native binary under `~/.nvm/.../lib/node_modules/@openai/codex` |
+| bun global install | `~/.bun/bin` and `~/.bun/install/global` |
+| Homebrew cask / Intel global npm | `/usr/local/bin/codex`, `/usr/local/Caskroom/codex`, `/usr/local/bin/node`, `/usr/local/lib/node_modules/@openai/codex` |
+
+Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+exec rules. Plugin and hook support for Codex is intentionally not implemented yet.
 
 ## Project configuration
 
@@ -290,6 +311,8 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 
 `XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
 
+xcodex sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. It has no denial-hook or reload sentinel variables today.
+
 ## Reference
 
 ### SBPL parameters
@@ -312,6 +335,7 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 | `XCLAUDE_ACTIVE` | `1` | **Stable** — public API for sandbox detection |
 | `XCLAUDE_DENIAL_LOG` | Path to streaming denial log | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
+| `XCODEX_ACTIVE` | `1` | **Stable** — public API for Codex sandbox detection |
 
 ### Files
 
@@ -335,6 +359,7 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 | `plugin/skills/reload-sandbox/SKILL.md` | `/reload-sandbox` hot reload trigger |
 | `test_xclaude.bash` | DSL pipeline unit tests (any platform, bash 4+) |
 | `test_sandbox.zsh` | Sandbox integration test runner (macOS only) |
+| `test_xcodex_sandbox.zsh` | Codex base-profile sandbox integration tests (macOS only) |
 | [`CLAUDE.md`](CLAUDE.md) | Development guide — architecture, adding toolchains, base profile changes |
 | [`DEBUGGING.md`](DEBUGGING.md) | Diagnosing sandbox issues, SBPL gotchas, denial categories |
 
@@ -363,6 +388,9 @@ zsh test_sandbox.zsh --toolchain node,uv
 
 # With a custom project config
 zsh test_sandbox.zsh --with-config path/to/.xclaude
+
+# Codex base profile
+zsh test_xcodex_sandbox.zsh
 ```
 
 Each tested toolchain runs in its own parallel CI job with the tool installed at its canonical path. Tests verify:

@@ -19,9 +19,15 @@ main() {
     return 1
   fi
 
+  local codex_bin
+  if ! codex_bin="$(command -v codex 2>/dev/null)"; then
+    echo "xcodex: codex not found in PATH" >&2
+    return 127
+  fi
+
   if ! command -v sandbox-exec &>/dev/null; then
     echo "xcodex: sandbox-exec not found, running without sandbox" >&2
-    codex "$@"
+    "$codex_bin" "$@"
     return
   fi
 
@@ -32,6 +38,10 @@ main() {
   profile_path="${tmpdir}/xcodex-$$.sb"
   echo "$profile" > "$profile_path"
 
+  # XCODEX_ACTIVE is the stable public marker for tools that need to detect
+  # the outer xcodex Seatbelt sandbox. Codex's own sandbox/approval layer is
+  # disabled because sandbox-exec is the actual boundary here.
+  XCODEX_ACTIVE=1 \
   sandbox-exec \
     -D "PROJECT_DIR=${project_dir}" \
     -D "TMPDIR=${tmpdir}" \
@@ -40,7 +50,7 @@ main() {
     -D "HOME=${home_dir}" \
     -D "XCODEX_DIR=${xcodex_dir_resolved}" \
     -f "$profile_path" \
-    -- codex --dangerously-bypass-approvals-and-sandbox "$@"
+    -- "$codex_bin" --dangerously-bypass-approvals-and-sandbox "$@"
   rc=$?
 
   rm -f "$profile_path"

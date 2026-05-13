@@ -5,12 +5,16 @@ on:
     paths:
       - 'base.sb'
       - 'base-common.sb'
+      - 'base-codex.sb'
       - 'xclaude'
+      - 'xcodex'
       - 'xclaude.lib.zsh'
+      - 'xcodex.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
+      - 'test_xcodex_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
   pull_request:
@@ -18,12 +22,16 @@ on:
     paths:
       - 'base.sb'
       - 'base-common.sb'
+      - 'base-codex.sb'
       - 'xclaude'
+      - 'xcodex'
       - 'xclaude.lib.zsh'
+      - 'xcodex.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
+      - 'test_xcodex_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
 
@@ -49,3 +57,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: zsh test_sandbox.zsh --toolchain none
+
+  sandbox-codex:
+    name: "Sandbox: Codex base profile"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: zsh test_xcodex_sandbox.zsh
