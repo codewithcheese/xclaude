@@ -38,19 +38,24 @@ main() {
   profile_path="${tmpdir}/xcodex-$$.sb"
   echo "$profile" > "$profile_path"
 
-  # XCODEX_ACTIVE is the stable public marker for tools that need to detect
-  # the outer xcodex Seatbelt sandbox. Codex's own sandbox/approval layer is
-  # disabled because sandbox-exec is the actual boundary here.
-  XCODEX_ACTIVE=1 \
-  sandbox-exec \
-    -D "PROJECT_DIR=${project_dir}" \
-    -D "TMPDIR=${tmpdir}" \
-    -D "CACHE_DIR=${cache_dir}" \
-    -D "VOLATILE_DIR=${volatile_dir}" \
-    -D "HOME=${home_dir}" \
-    -D "XCODEX_DIR=${xcodex_dir_resolved}" \
-    -f "$profile_path" \
-    -- "$codex_bin" --dangerously-bypass-approvals-and-sandbox "$@"
+  local -a sandbox_args codex_args
+  sandbox_args=(
+    -D "PROJECT_DIR=${project_dir}"
+    -D "TMPDIR=${tmpdir}"
+    -D "CACHE_DIR=${cache_dir}"
+    -D "VOLATILE_DIR=${volatile_dir}"
+    -D "HOME=${home_dir}"
+    -D "XCODEX_DIR=${xcodex_dir_resolved}"
+    -f "$profile_path"
+  )
+  codex_args=(--dangerously-bypass-approvals-and-sandbox "$@")
+
+  # XCLAUDE_ACTIVE is the shared public marker for tools that only need to
+  # know they are inside this project's Seatbelt sandbox. XCODEX_ACTIVE is
+  # retained as a Codex-specific marker. Codex's own sandbox/approval layer
+  # is disabled because sandbox-exec is the actual boundary here.
+  env XCLAUDE_ACTIVE=1 XCODEX_ACTIVE=1 \
+    sandbox-exec "${sandbox_args[@]}" -- "$codex_bin" "${codex_args[@]}"
   rc=$?
 
   rm -f "$profile_path"

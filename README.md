@@ -309,9 +309,9 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 }
 ```
 
-`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
+`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. Both `xclaude` and `xcodex` set it so sandbox-aware tools work under either launcher. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
 
-xcodex sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. It has no denial-hook or reload sentinel variables today.
+xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. It has no denial-hook or reload sentinel variables today.
 
 ## Reference
 
@@ -332,7 +332,7 @@ xcodex sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. It has
 
 | Variable | Value | Stability |
 |---|---|---|
-| `XCLAUDE_ACTIVE` | `1` | **Stable** — public API for sandbox detection |
+| `XCLAUDE_ACTIVE` | `1` | **Stable** — shared public API for sandbox detection, set by both launchers |
 | `XCLAUDE_DENIAL_LOG` | Path to streaming denial log | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
 | `XCODEX_ACTIVE` | `1` | **Stable** — public API for Codex sandbox detection |

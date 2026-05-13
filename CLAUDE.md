@@ -81,13 +81,13 @@ xclaude sets these env vars for processes inside the sandbox:
 
 | Variable | Value | Stability |
 |---|---|---|
-| `XCLAUDE_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the sandbox |
+| `XCLAUDE_ACTIVE` | `1` | **Stable** — recommended way for tools to detect either launcher sandbox |
 | `XCLAUDE_DENIAL_LOG` | Path to denial log file | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
 | `XCODEX_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the Codex sandbox |
 
-To check if running inside xclaude: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
-To check if running inside xcodex: `[[ "${XCODEX_ACTIVE:-}" == "1" ]]`.
+To check if running inside either sandbox: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
+To check specifically for xcodex: `[[ "${XCODEX_ACTIVE:-}" == "1" ]]`.
 
 ## Codex support
 

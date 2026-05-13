@@ -124,7 +124,7 @@ PROFILE_PATH="${TMPDIR_RESOLVED}/xcodex-test-$$.sb"
 
 sandboxed() {
   cd "$PROJECT_DIR"
-  XCODEX_ACTIVE=1 sandbox-exec \
+  XCLAUDE_ACTIVE=1 XCODEX_ACTIVE=1 sandbox-exec \
     -D "PROJECT_DIR=${PROJECT_DIR}" \
     -D "TMPDIR=${TMPDIR_RESOLVED}" \
     -D "CACHE_DIR=${CACHE_DIR}" \
@@ -190,6 +190,9 @@ fi
 
 t "XCODEX_ACTIVE is visible"
 expect_success "visible" sandboxed /bin/sh -c 'test "$XCODEX_ACTIVE" = 1'
+
+t "shared XCLAUDE_ACTIVE is visible"
+expect_success "visible" sandboxed /bin/sh -c 'test "$XCLAUDE_ACTIVE" = 1'
 
 t "installed codex can start"
 if codex_bin="$(command -v codex 2>/dev/null)"; then
