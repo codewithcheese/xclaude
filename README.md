@@ -1,6 +1,6 @@
 # xclaude
 
-A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude` and Codex CLI via `xcodex`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
+A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude`, Codex CLI via `xcodex`, and the [Pi coding agent](https://pi.dev) via `xpi`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
 
 ## Why
 
@@ -9,6 +9,8 @@ By default Claude Code can read and write anywhere your shell can — including 
 xclaude replaces it with a hand-tuned Seatbelt profile that **defaults to strict deny**, lets you opt in to extra access via a tiny safe DSL, and ships with a Claude Code plugin so the agent helps you fix denials instead of working around them.
 
 For Codex CLI, `xcodex` uses the same outer Seatbelt boundary and starts Codex with `--dangerously-bypass-approvals-and-sandbox`. That disables Codex's own approval/sandbox layer because the OS sandbox assembled by xcodex is the enforcement boundary.
+
+For the Pi coding agent, `xpi` uses the same outer Seatbelt boundary. Pi has no built-in approval/sandbox layer to disable, so the binary runs with whatever arguments you pass through — the OS sandbox is the only enforcement layer.
 
 ## What it protects
 
@@ -56,6 +58,7 @@ These attack patterns are all blocked by Seatbelt's kernel-level enforcement and
    cd /path/to/your/project
    xclaude    # Claude Code
    xcodex     # Codex CLI
+   xpi        # Pi coding agent
    ```
 
 That's it. xclaude assembles a profile from `base.sb` (plus any user/project config), launches Claude Code under `sandbox-exec`, and bypasses Claude's internal permission prompts (`--dangerously-skip-permissions`) — the OS sandbox is the actual boundary.
@@ -79,6 +82,12 @@ For Codex the same flow uses `base-common.sb + base-codex.sb`, `~/.config/xcodex
 
 ```sh
 sandbox-exec -f <assembled> -- codex --dangerously-bypass-approvals-and-sandbox
+```
+
+For Pi the same flow uses `base-common.sb + base-pi.sb`, `~/.config/xpi/config`, and the same project-level `./.xclaude` file, then launches:
+
+```sh
+sandbox-exec -f <assembled> -- pi <your args>
 ```
 
 All layers are **additive**. The base profile starts with `(deny default)` and the DSL has no `deny` verb, so config files can only widen access — never narrow what the base profile already grants.
@@ -125,6 +134,30 @@ Codex install layouts covered by the base profile:
 | Homebrew cask / Intel global npm | `/usr/local/bin/codex`, `/usr/local/Caskroom/codex`, `/usr/local/bin/node`, `/usr/local/lib/node_modules/@openai/codex` |
 
 Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+exec rules. Plugin and hook support for Codex is intentionally not implemented yet.
+
+### xpi
+
+`xpi` follows the same DSL and trust model, but uses Pi-specific defaults:
+
+- Project config: `.xclaude` (shared with `xclaude` and `xcodex`)
+- User config: `~/.config/xpi/config`
+- Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
+- Trust ledger: `~/.config/xpi/trusted`
+- Base fragments: `base-common.sb` + `base-pi.sb`
+
+Its base profile grants Pi access to `~/.pi` state and its CLI install location, instead of Claude- or Codex-specific paths.
+
+Pi install layouts covered by the base profile:
+
+| Install layout | Covered paths |
+|---|---|
+| npm under NVM | `~/.nvm/.../bin/pi` plus vendored binaries under `~/.nvm/.../lib/node_modules/@earendil-works/pi-coding-agent` |
+| `curl pi.dev/install.sh` | `~/.local/bin/pi`, plus the optional vendored node runtime at `~/.local/share/pi-node` |
+| Intel Homebrew global npm | `/usr/local/bin/pi`, `/usr/local/bin/node`, `/usr/local/lib/node_modules/@earendil-works/pi-coding-agent` |
+
+Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+exec rules.
+
+Unlike Codex, Pi can install npm and git packages and TypeScript extensions at runtime under `~/.pi/agent/{npm,git,extensions}`. Pi state (`~/.pi`) is fully readable and writable, but `process-exec` is scoped narrowly to those three install subdirectories — sessions, `auth.json`, settings, themes, prompts, and other state under `~/.pi` cannot be executed even if a write lands there. Plugin and hook support for Pi is intentionally not implemented yet.
 
 ## Project configuration
 
@@ -309,9 +342,9 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 }
 ```
 
-`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. Both `xclaude` and `xcodex` set it so sandbox-aware tools work under either launcher. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
+`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. `xclaude`, `xcodex`, and `xpi` all set it so sandbox-aware tools work under any launcher. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
 
-xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. It has no denial-hook or reload sentinel variables today.
+xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox, and xpi sets `XPI_ACTIVE=1` for every process inside the Pi sandbox. Neither has denial-hook or reload sentinel variables today.
 
 ## Reference
 
@@ -336,6 +369,7 @@ xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. I
 | `XCLAUDE_DENIAL_LOG` | Path to streaming denial log | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
 | `XCODEX_ACTIVE` | `1` | **Stable** — public API for Codex sandbox detection |
+| `XPI_ACTIVE` | `1` | **Stable** — public API for Pi sandbox detection |
 
 ### Files
 
@@ -343,12 +377,15 @@ xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. I
 |---|---|
 | `xclaude` | Executable entry point — sources library, runs sandboxed Claude (reload loop) |
 | `xcodex` | Executable entry point — sources library, runs sandboxed Codex CLI |
+| `xpi` | Executable entry point — sources library, runs sandboxed Pi coding agent |
 | `xsandbox.lib.zsh` | Shared DSL parser, validator, SBPL generator, assembler, trust gate |
 | `xclaude.lib.zsh` | Claude-specific wrapper over the shared library |
 | `xcodex.lib.zsh` | Codex-specific wrapper over the shared library |
+| `xpi.lib.zsh` | Pi-specific wrapper over the shared library |
 | `base-common.sb` | Shared SBPL base (`deny default` + common rules) |
 | `base.sb` | Claude-specific SBPL fragment layered on top of `base-common.sb` |
 | `base-codex.sb` | Codex-specific SBPL fragment layered on top of `base-common.sb` |
+| `base-pi.sb` | Pi-specific SBPL fragment layered on top of `base-common.sb` |
 | `toolchains/<name>.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/<name>.test.zsh` | Sandbox tests for each toolchain |
 | `toolchains/test_helpers.zsh` | Shared test helpers (`tc_setup`, `tc_sandboxed`, ...) |
@@ -360,6 +397,7 @@ xcodex also sets `XCODEX_ACTIVE=1` for every process inside the Codex sandbox. I
 | `test_xclaude.bash` | DSL pipeline unit tests (any platform, bash 4+) |
 | `test_sandbox.zsh` | Sandbox integration test runner (macOS only) |
 | `test_xcodex_sandbox.zsh` | Codex base-profile sandbox integration tests (macOS only) |
+| `test_xpi_sandbox.zsh` | Pi base-profile sandbox integration tests (macOS only) |
 | [`CLAUDE.md`](CLAUDE.md) | Development guide — architecture, adding toolchains, base profile changes |
 | [`DEBUGGING.md`](DEBUGGING.md) | Diagnosing sandbox issues, SBPL gotchas, denial categories |
 

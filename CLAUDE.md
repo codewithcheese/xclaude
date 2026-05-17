@@ -37,12 +37,15 @@ plugin/
 ```
 xclaude                  # Claude executable entry point
 xcodex                   # Codex executable entry point
+xpi                      # Pi coding agent executable entry point
 xsandbox.lib.zsh         # Shared library: DSL parser, validator, generator, assembler, trust gate
 xclaude.lib.zsh          # Claude-specific wrapper over shared library
 xcodex.lib.zsh           # Codex-specific wrapper over shared library
+xpi.lib.zsh              # Pi-specific wrapper over shared library
 base-common.sb           # Shared SBPL base fragment (deny default + common rules)
 base.sb                  # Claude-specific SBPL fragment
 base-codex.sb            # Codex-specific SBPL fragment
+base-pi.sb               # Pi-specific SBPL fragment
 toolchains/
   <name>.sb              # SBPL fragment for a toolchain
   <name>.test.zsh        # Sandbox tests for that toolchain
@@ -72,6 +75,7 @@ All parameters are passed to `sandbox-exec` via `-D KEY=value` flags in `xclaude
 | `VOLATILE_DIR` | `/private/var/folders/.../X/` (sibling of TMPDIR, code-signing clones) |
 | `XCLAUDE_DIR` | Absolute path of the xclaude installation (where `xclaude` lives) |
 | `XCODEX_DIR` | Absolute path of the xclaude installation when launched via `xcodex` |
+| `XPI_DIR` | Absolute path of the xclaude installation when launched via `xpi` |
 
 Use `(param "NAME")` in SBPL — never hardcode paths.
 
@@ -85,9 +89,11 @@ xclaude sets these env vars for processes inside the sandbox:
 | `XCLAUDE_DENIAL_LOG` | Path to denial log file | Internal — do not rely on |
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
 | `XCODEX_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the Codex sandbox |
+| `XPI_ACTIVE` | `1` | **Stable** — recommended way for tools to detect the Pi sandbox |
 
-To check if running inside either sandbox: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
+To check if running inside any launcher's sandbox: `[[ "${XCLAUDE_ACTIVE:-}" == "1" ]]`.
 To check specifically for xcodex: `[[ "${XCODEX_ACTIVE:-}" == "1" ]]`.
+To check specifically for xpi: `[[ "${XPI_ACTIVE:-}" == "1" ]]`.
 
 ## Codex support
 
@@ -107,6 +113,28 @@ Current Codex install layouts covered by `base-codex.sb`:
 - npm install under NVM, including the vendored native binary under `@openai/codex`
 - bun global install under `~/.bun`
 - Homebrew cask/global npm under `/opt/homebrew` or `/usr/local`
+
+## Pi support
+
+`xpi` uses the same shared DSL, trust gate, packs, and assembler as `xclaude`, but with Pi-specific user-level config and base profile:
+
+- Project config: `.xclaude` (shared with `xclaude` and `xcodex`; name may become generic later)
+- User config: `~/.config/xpi/config`
+- Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
+- Trust ledger: `~/.config/xpi/trusted`
+- Base fragments: `base-common.sb` + `base-pi.sb`
+
+`xpi` resolves the `pi` executable before entering Seatbelt and launches it directly — Pi has no built-in approval/sandbox layer to disable, so the binary just runs under the outer `sandbox-exec` profile. Keep Pi plugin/hook behavior out of scope until there is a deliberate design for it.
+
+Current Pi install layouts covered by `base-pi.sb` (only the methods documented at pi.dev/docs):
+
+- npm install -g under NVM, including the vendored native binary under `@earendil-works/pi-coding-agent`
+- `curl pi.dev/install.sh` fallback layout: `~/.local/bin/pi` plus the optional vendored node runtime under `~/.local/share/pi-node`
+- Intel Homebrew global npm under `/usr/local`
+
+Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+exec rules.
+
+Pi installs runtime packages and TypeScript extensions under `~/.pi/agent/{npm,git,extensions}`. The whole `~/.pi` tree is read+write, but `process-exec` is scoped narrowly to those three subdirs — sessions, `auth.json`, settings, themes, prompts, and other state under `~/.pi` cannot be executed even if a write lands there.
 
 ## SBPL rules to know
 
@@ -272,6 +300,9 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 # Codex base-profile integration
 zsh test_xcodex_sandbox.zsh
+
+# Pi base-profile integration
+zsh test_xpi_sandbox.zsh
 ```
 
 ### Test structure
@@ -279,6 +310,7 @@ zsh test_xcodex_sandbox.zsh
 - `test_xclaude.bash` — tests the DSL pipeline in pure bash. Duplicates the parser/validator/generator functions from `xclaude.lib.zsh` since they use zsh syntax. If you change the DSL logic in `xclaude.lib.zsh`, update the corresponding functions in `test_xclaude.bash` too.
 - `test_sandbox.zsh` — tests real `sandbox-exec` enforcement for the Claude base profile. Runs base profile tests (reads, writes, exec, escape vectors), then auto-discovers and runs `toolchains/*.test.zsh`.
 - `test_xcodex_sandbox.zsh` — tests real `sandbox-exec` enforcement for the Codex base profile and verifies current Codex can start when installed.
+- `test_xpi_sandbox.zsh` — tests real `sandbox-exec` enforcement for the Pi base profile and verifies current Pi can start when installed. Also checks the scoped-exec rule under `~/.pi/agent`.
 - `toolchains/*.test.zsh` — each file sources `test_helpers.zsh` and tests one toolchain. Creates fixture dirs, verifies access, checks tool usability if installed.
 
 ### Test helpers reference

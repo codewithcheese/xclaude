@@ -6,15 +6,19 @@ on:
       - 'base.sb'
       - 'base-common.sb'
       - 'base-codex.sb'
+      - 'base-pi.sb'
       - 'xclaude'
       - 'xcodex'
+      - 'xpi'
       - 'xclaude.lib.zsh'
       - 'xcodex.lib.zsh'
+      - 'xpi.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'test_xcodex_sandbox.zsh'
+      - 'test_xpi_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
   pull_request:
@@ -23,15 +27,19 @@ on:
       - 'base.sb'
       - 'base-common.sb'
       - 'base-codex.sb'
+      - 'base-pi.sb'
       - 'xclaude'
       - 'xcodex'
+      - 'xpi'
       - 'xclaude.lib.zsh'
       - 'xcodex.lib.zsh'
+      - 'xpi.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'test_xcodex_sandbox.zsh'
+      - 'test_xpi_sandbox.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
 
@@ -64,3 +72,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: zsh test_xcodex_sandbox.zsh
+
+  sandbox-pi:
+    name: "Sandbox: Pi base profile"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: zsh test_xpi_sandbox.zsh

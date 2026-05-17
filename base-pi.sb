@@ -1,0 +1,64 @@
+;; ============================================================
+;; Pi-specific process execution
+;; ============================================================
+(allow process-exec
+  ;; npm install -g under NVM uses a JS launcher (~/.nvm/versions/node/<v>/bin/pi)
+  ;; that requires the matching node binary; the whole NVM tree must be exec-able.
+  (subpath (string-append (param "HOME") "/.nvm"))
+  ;; Intel Homebrew npm global: /usr/local/bin/{pi,node} plus the package itself.
+  (literal "/usr/local/bin/pi")
+  (literal "/usr/local/bin/node")
+  (subpath "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent")
+  ;; curl install.sh places the launcher in ~/.local/bin and may vendor a
+  ;; standalone node runtime under ~/.local/share/pi-node.
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/pi-node")))
+
+;; Runtime-installed pi packages and TypeScript extensions live under
+;; ~/.pi/agent/{npm,git,extensions}. Pi loads JS via node, but native
+;; binaries shipped with installed packages also need to be exec-able.
+;; Scope exec narrowly to these subdirs (not the whole ~/.pi tree) so
+;; that other ~/.pi contents — sessions, auth.json, settings — cannot
+;; be exec'd if pi or an extension writes a binary there.
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.pi/agent/npm"))
+  (subpath (string-append (param "HOME") "/.pi/agent/git"))
+  (subpath (string-append (param "HOME") "/.pi/agent/extensions")))
+
+;; ============================================================
+;; Pi-specific read permissions
+;; ============================================================
+
+;; Pi CLI binary locations — same set as the exec allows above so the
+;; launcher script can be read before being executed.
+(allow file-read-data
+  ;; npm-under-NVM install layout.
+  (subpath (string-append (param "HOME") "/.nvm"))
+  ;; Intel Homebrew npm global install.
+  (literal "/usr/local/bin/pi")
+  (literal "/usr/local/bin/node")
+  (subpath "/usr/local/lib/node_modules/@earendil-works/pi-coding-agent")
+  ;; curl install.sh fallback locations.
+  (subpath (string-append (param "HOME") "/.local/bin"))
+  (subpath (string-append (param "HOME") "/.local/share/pi-node")))
+
+;; Pi agent state: settings.json, auth.json, sessions/, AGENTS.md,
+;; CLAUDE.md, SYSTEM.md, extensions/, skills/, prompts/, themes/,
+;; keybindings.json, git/, npm/. Pi reads from this tree on every start.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.pi")))
+
+;; xpi user config — read-only for inspection/debugging.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/xpi")))
+
+;; ============================================================
+;; Pi-specific write permissions
+;; ============================================================
+(allow file-write*
+  ;; Pi state, auth, session persistence, package installs, logs.
+  (subpath (string-append (param "HOME") "/.pi")))
+
+;; Shared project sandbox config — prevents privilege escalation on next launch.
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
