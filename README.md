@@ -212,6 +212,7 @@ allow-exec  ~/.local/bin/custom    # read + exec access
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
+| `swift` | SwiftPM via Xcode or Command Line Tools, SwiftPM caches/config (`~/Library/{Caches/,}org.swift.swiftpm`, `~/.swiftpm`). Pass `--disable-sandbox` to swift commands — macOS forbids nested `sandbox-exec` |
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens, assets (`~/.cache/huggingface`) |

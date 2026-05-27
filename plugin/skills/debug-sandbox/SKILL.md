@@ -48,6 +48,7 @@ Comments start with `#`. Blank lines are ignored.
 | `python` | pyenv (`~/.pyenv`) |
 | `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`) |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
+| `swift` | SwiftPM via Xcode or Command Line Tools, caches/config (`~/Library/{Caches/,}org.swift.swiftpm`, `~/.swiftpm`), narrow TMPDIR exec for the manifest binary. Requires `--disable-sandbox` on swift commands (macOS forbids nested `sandbox-exec`) |
 | `deno` | Deno runtime and cache (`~/.deno`) |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens (`~/.cache/huggingface`) |
