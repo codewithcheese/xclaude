@@ -47,6 +47,15 @@ expect_success "binary" tc_sandboxed test -f "${PROJECT_DIR}/swift-test/.build/d
 t "swift: swift run --disable-sandbox"
 expect_success "runs binary" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/swift-test' && '${__swift}' run --disable-sandbox SwiftTest"
 
+# lldb — launch the inferior to completion and confirm exit status.
+__lldb="$(xcrun --find lldb 2>/dev/null || echo "")"
+if [[ -n "$__lldb" && -x "$__lldb" ]]; then
+  t "swift: lldb process launch"
+  expect_success "lldb runs inferior" tc_sandboxed "$__lldb" -b \
+    -o "process launch" -o "quit" \
+    "${PROJECT_DIR}/swift-test/.build/debug/SwiftTest"
+fi
+
 rm -rf "${PROJECT_DIR}/swift-test"
 
 # ── Isolation ──

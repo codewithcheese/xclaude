@@ -1,4 +1,4 @@
-;; Swift toolchain (SwiftPM)
+;; Swift toolchain (SwiftPM + lldb)
 ;;
 ;; /usr/bin/swift dispatches to either Xcode or Command Line Tools.
 ;; SwiftPM state lives under ~/Library/{Caches/,}org.swift.swiftpm, with
@@ -9,16 +9,19 @@
 ;; manifest sandbox can't initialize. Pass --disable-sandbox to swift
 ;; build/run/test/package. The outer xclaude sandbox still applies.
 
-;; Exec — Xcode and CLT developer dirs (/Applications not in any base
-;; allowlist; CLT is under /Library which base reads but doesn't exec).
-(allow process-exec
-  (subpath "/Applications/Xcode.app/Contents/Developer")
-  (subpath "/Library/Developer/CommandLineTools"))
+;; Exec — Xcode and CLT. Whole Xcode.app because lldb's debugserver
+;; lives in Contents/SharedFrameworks, not Contents/Developer.
+;; process-exec* (vs plain process-exec) covers debugger-launched spawn.
+(allow process-exec*
+  (subpath "/Applications/Xcode.app")
+  (subpath "/Library/Developer/CommandLineTools")
+  ;; Inferior binaries that lldb launches from the project's build dir.
+  (subpath (param "PROJECT_DIR")))
 
 ;; Exec — SwiftPM compiles Package.swift to $TMPDIR/TemporaryDirectory.*/<pkg>-manifest
 ;; and execs it. Base profile blocks TMPDIR exec; this re-allows only
 ;; the manifest naming pattern, not arbitrary TMPDIR binaries.
-(allow process-exec
+(allow process-exec*
   (regex (string-append
     "^" (param "TMPDIR") "/TemporaryDirectory\\.[^/]+/[^/]+-manifest$")))
 
@@ -40,3 +43,9 @@
 ;; Read — CoreFoundation reads this on startup of CF-linked binaries.
 (allow file-read-data
   (path (string-append (param "HOME") "/.CFUserTextEncoding")))
+
+;; lldb — pty allocation for the inferior, and the Python scripting
+;; bridge's .pyc cache under ~/Library/Caches/com.apple.python.
+(allow pseudo-tty)
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Caches/com.apple.python")))
