@@ -19,6 +19,12 @@ t "rust: write ~/.cargo/registry"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/registry/test-write"
 rm -f "${HOME}/.cargo/registry/test-write"
 
+t "rust: write ~/.cargo/.package-cache-mutate"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/.package-cache-mutate"
+
+t "rust: write ~/.cargo/.global-cache"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/.global-cache"
+
 # ── Usability ──
 __cargo="${HOME}/.cargo/bin/cargo"
 if [[ ! -x "$__cargo" ]]; then

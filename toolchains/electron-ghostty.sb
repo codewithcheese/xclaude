@@ -1,0 +1,54 @@
+;; Electron + embedded libghostty terminal
+;;
+;; For Electron apps that link libghostty via a native addon (e.g.
+;; ghostty_bridge.node) and run the terminal core in-process. Covers what
+;; such an app needs beyond the base profile to allocate PTYs and to run
+;; under Electron.
+;;
+;; Does NOT grant exec of setuid binaries. The app must spawn its shell
+;; directly (e.g. $SHELL -l), not via /usr/bin/login. Configure libghostty's
+;; `command` accordingly in the native bridge — using login would trip
+;; forbidden-exec-sugid and require widening exec authority across the
+;; entire sandbox.
+;;
+;; Does NOT cover the standalone /Applications/Ghostty.app. Embedded use only.
+
+;; Pseudo-terminal operation class.
+;; PTY device file I/O (/dev/ptmx, /dev/ttys*) is already granted by
+;; base-common.sb; this is the separate kernel `pseudo-tty` operation
+;; that posix_openpt / grantpt require.
+(allow pseudo-tty)
+
+;; Electron user-data dir.
+;; Even when Playwright passes --user-data-dir=<tmpdir>, Electron touches
+;; the default support path on startup for crash reporter init and
+;; CFPreferences lookups before the override is parsed.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Application Support/Electron")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Application Support/Electron")))
+
+;; Electron logs (console output, GPU/renderer logs).
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Logs/Electron")))
+
+;; Electron disk cache — GPUCache, Code Cache, Service Worker cache.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Caches/Electron")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Caches/Electron")))
+
+;; Saved window state — Cocoa NSWindowRestoration persists window
+;; geometry here on quit.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Saved Application State/com.github.Electron.savedState")))
+(allow file-write*
+  (subpath (string-append (param "HOME") "/Library/Saved Application State/com.github.Electron.savedState")))
+
+;; Chromium-under-Electron reads IME / keyboard layout / spelling data
+;; on startup. Same paths as playwright-chromium.sb — duplicated here so
+;; this toolchain is usable on its own without composing with playwright.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/Library/Input Methods"))
+  (subpath (string-append (param "HOME") "/Library/Keyboard Layouts"))
+  (subpath (string-append (param "HOME") "/Library/Spelling")))

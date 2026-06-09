@@ -57,6 +57,7 @@ Comments start with `#`. Blank lines are ignored.
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright` read+write+exec) |
 | `playwright-chromium` | Chromium-specific macOS paths: locale, input methods, spelling, crash reporter, branding. Requires `tool playwright` |
 | `chrome` | Google Chrome (`/Applications/Google Chrome.app` read+exec), macOS integration (locale, input methods, spelling), crash reporter (`~/Library/Application Support/Google/Chrome`). Use `--no-sandbox --user-data-dir=./profile` |
+| `electron-ghostty` | Electron apps embedding libghostty: `pseudo-tty` operation (PTY alloc), Electron support/cache/log/saved-state dirs (`~/Library/{Application Support,Caches,Logs,Saved Application State}/...Electron`), IME/keyboard/spelling reads. No sugid exec — app must spawn `$SHELL` directly, not via `/usr/bin/login`. Embedded only, not standalone Ghostty.app |
 
 Always prefer a `tool` directive over manual `allow-*` rules when a toolchain exists.
 Toolchains are vetted for least privilege (e.g. `node` makes `~/.nvm` read-only,

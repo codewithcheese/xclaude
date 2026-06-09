@@ -221,6 +221,7 @@ allow-exec  ~/.local/bin/custom    # read + exec access
 | `playwright` | Browser downloads and binaries (`~/Library/Caches/ms-playwright`) |
 | `playwright-chromium` | Chromium-specific macOS integration: locale, input methods, spelling, crash reporter. Requires `tool playwright` |
 | `chrome` | Google Chrome.app (read+exec), macOS integration paths, GoogleUpdater. Use with `--no-sandbox --user-data-dir=./profile` |
+| `electron-ghostty` | Electron apps embedding libghostty: `pseudo-tty` for PTY allocation, Electron support/cache/log/saved-state dirs, IME/keyboard/spelling reads. App must spawn `$SHELL` directly (no sugid exec via `/usr/bin/login`); embedded use only, not standalone Ghostty.app |
 
 Adding a new toolchain is a five-file change (SBPL fragment, sandbox test, README row, debug-sandbox skill row, CI job). See [`CLAUDE.md`](CLAUDE.md#adding-a-toolchain) for the full guide.
 

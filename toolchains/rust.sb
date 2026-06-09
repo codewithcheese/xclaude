@@ -26,6 +26,10 @@
   (subpath (string-append (param "HOME") "/.cargo/git"))
   ;; package cache lock file
   (literal (string-append (param "HOME") "/.cargo/.package-cache"))
+  ;; secondary package-cache mutex used by newer cargo
+  (literal (string-append (param "HOME") "/.cargo/.package-cache-mutate"))
+  ;; SQLite db backing cargo's gc.auto registry/source cache pruning
+  (literal (string-append (param "HOME") "/.cargo/.global-cache"))
   ;; cargo install metadata — tracks which crates are installed
   (literal (string-append (param "HOME") "/.cargo/.crates.toml"))
   (literal (string-append (param "HOME") "/.cargo/.crates2.json")))
