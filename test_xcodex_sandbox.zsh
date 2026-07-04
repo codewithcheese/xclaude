@@ -201,6 +201,50 @@ else
   skip "codex not installed"
 fi
 
+echo "=== gh toolchain: keyring (keychain) access ==="
+
+# gh stores its OAuth token in the macOS login keychain by default. Unlike
+# base.sb (Claude), base-codex.sb does not grant keychain read — Codex keeps
+# its own auth in ~/.codex/auth.json — so `tool gh` must supply it, or
+# `gh auth status` reports the token invalid. Guard both directions:
+# the base alone must block keychain reads; `tool gh` must allow them.
+__keychain_file=""
+for __kc in "${HOME}/Library/Keychains/"*(.N); do
+  __keychain_file="$__kc"; break
+done
+
+if [[ -z "$__keychain_file" ]]; then
+  t "gh keyring: keychain read blocked by base (no tool gh)"; skip "no keychain database present"
+  t "gh keyring: tool gh grants keychain read"; skip "no keychain database present"
+else
+  t "gh keyring: keychain read blocked by base (no tool gh)"
+  expect_fail "blocked" sandboxed cat "$__keychain_file"
+
+  # A second profile that opts into the gh toolchain must gain keychain read.
+  /bin/echo "tool gh" > "${PROJECT_DIR}/.xclaude"
+  __xcodex_trust "${PROJECT_DIR}/.xclaude" >/dev/null 2>&1
+  GH_PROFILE_PATH="${TMPDIR_RESOLVED}/xcodex-gh-test-$$.sb"
+  __xcodex_assemble "$PROJECT_DIR" > "$GH_PROFILE_PATH"
+  rm -f "${PROJECT_DIR}/.xclaude"
+
+  sandboxed_gh() {
+    cd "$PROJECT_DIR"
+    XCLAUDE_ACTIVE=1 XCODEX_ACTIVE=1 sandbox-exec \
+      -D "PROJECT_DIR=${PROJECT_DIR}" \
+      -D "TMPDIR=${TMPDIR_RESOLVED}" \
+      -D "CACHE_DIR=${CACHE_DIR}" \
+      -D "VOLATILE_DIR=${VOLATILE_DIR}" \
+      -D "HOME=${HOME_DIR}" \
+      -D "XCODEX_DIR=${XCODEX_DIR}" \
+      -f "$GH_PROFILE_PATH" \
+      -- "$@"
+  }
+
+  t "gh keyring: tool gh grants keychain read"
+  expect_success "allowed" sandboxed_gh cat "$__keychain_file"
+  rm -f "$GH_PROFILE_PATH"
+fi
+
 echo ""
 echo "=== Results ==="
 total=$((__test_pass + __test_fail))
