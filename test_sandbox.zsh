@@ -118,6 +118,10 @@ __ensure_fixture "${HOME}/.aws" "credentials"
 __ensure_fixture "${HOME}/.gnupg" ""
 __ensure_fixture "${HOME}/.docker" "config.json"
 __ensure_fixture "${HOME}/.claude" ""
+# git excludesFile (granted) plus a sibling probe (must stay blocked — proves
+# the grant is literal, not a subpath over ~/.config/git).
+__ensure_fixture "${HOME}/.config/git" "ignore"
+__ensure_fixture "${HOME}/.config/git" "xclaude-blocked-probe"
 mkdir -p "${HOME}/Desktop" "${HOME}/Documents" "${HOME}/Downloads" 2>/dev/null || true
 [[ -f "${HOME}/.zsh_history" ]] || { echo "fixture" > "${HOME}/.zsh_history"; __fixtures_created+=("${HOME}/.zsh_history"); }
 
@@ -192,6 +196,9 @@ expect_success "allowed" sandboxed cat /private/etc/hosts
 t "read ~/.claude directory"
 expect_success "allowed" sandboxed ls "${HOME}/.claude"
 
+t "read ~/.config/git/ignore (git excludesFile)"
+expect_success "allowed" sandboxed cat "${HOME}/.config/git/ignore"
+
 # ── Tests: base profile (blocked reads) ──────────────────────
 echo "=== Blocked reads ==="
 
@@ -218,6 +225,9 @@ expect_fail "blocked" sandboxed cat "${HOME}/.docker/config.json"
 
 t "read ~/.zsh_history"
 expect_fail "blocked" sandboxed cat "${HOME}/.zsh_history"
+
+t "read ~/.config/git sibling (literal grant, not subpath)"
+expect_fail "blocked" sandboxed cat "${HOME}/.config/git/xclaude-blocked-probe"
 
 # ── Tests: base profile (writes) ─────────────────────────────
 echo "=== Write access ==="

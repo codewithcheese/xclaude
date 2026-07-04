@@ -75,6 +75,13 @@
 (allow file-read-data
   (path (string-append (param "HOME") "/.gitconfig")))
 
+;; Git global excludesFile (core.excludesFile default, XDG path). Read on
+;; every git invocation; without it git warns "Operation not permitted".
+;; Literal (not subpath) so this can never expose a credentials or config
+;; file that git's store helper / a global config might place alongside it.
+(allow file-read-data
+  (literal (string-append (param "HOME") "/.config/git/ignore")))
+
 ;; Shell config — agents inspect shell environment on startup
 (allow file-read-data
   (path (string-append (param "HOME") "/.zshrc"))
