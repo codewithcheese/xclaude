@@ -13,7 +13,12 @@
   (subpath "/usr/local/Caskroom/codex")
   ;; Intel npm global installs use /usr/local/bin/node plus @openai/codex.
   (literal "/usr/local/bin/node")
-  (subpath "/usr/local/lib/node_modules/@openai/codex"))
+  (subpath "/usr/local/lib/node_modules/@openai/codex")
+  ;; ChatGPT.app bundles the Node REPL MCP server and its isolated Node kernel.
+  ;; Keep execution literal so npm, npx, corepack, and setup scripts beside
+  ;; these binaries do not become executable through the Codex base profile.
+  (literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl")
+  (literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node"))
 
 ;; ============================================================
 ;; Codex-specific read permissions
@@ -31,11 +36,22 @@
   (literal "/usr/local/bin/codex")
   (literal "/usr/local/bin/node")
   (subpath "/usr/local/Caskroom/codex")
-  (subpath "/usr/local/lib/node_modules/@openai/codex"))
+  (subpath "/usr/local/lib/node_modules/@openai/codex")
+  ;; The Node REPL server reads its own executable, launches the bundled Node
+  ;; kernel, and resolves packages from this exact bundled node_modules tree.
+  (literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl")
+  (literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node")
+  (subpath "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"))
 
 ;; Codex config, auth, sessions, plugins, skills, and logs
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.codex")))
+
+;; User-level cross-agent skills are discovered by Codex at ~/.agents/skills.
+;; Keep this tree read-only: Codex needs skill instructions and assets at
+;; startup, but skill installation and mutation stay outside the sandbox.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.agents/skills")))
 
 ;; xcodex user config — read-only for inspection/debugging
 (allow file-read-data

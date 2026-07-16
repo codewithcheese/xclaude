@@ -7,6 +7,32 @@
 
 source "${__xcodex_dir}/xsandbox.lib.zsh"
 
+# Return success when the user-level Codex config registers the Node REPL
+# bundled with ChatGPT.app. xcodex uses this to disable only the REPL's nested
+# Codex sandbox; the outer Seatbelt profile remains the security boundary.
+__xcodex_uses_chatgpt_node_repl() {
+  local codex_home="${CODEX_HOME:-${HOME}/.codex}"
+  local config_file="${codex_home}/config.toml"
+
+  [[ -r "$config_file" ]] || return 1
+
+  /usr/bin/awk '
+    /^[[:space:]]*\[[[:space:]]*mcp_servers[.]"?node_repl"?[[:space:]]*\][[:space:]]*(#.*)?$/ {
+      in_node_repl = 1
+      next
+    }
+    /^[[:space:]]*\[/ {
+      in_node_repl = 0
+    }
+    in_node_repl && /^[[:space:]]*command[[:space:]]*=[[:space:]]*"\/Applications\/ChatGPT[.]app\/Contents\/Resources\/cua_node\/bin\/node_repl"[[:space:]]*(#.*)?$/ {
+      found = 1
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  ' "$config_file"
+}
+
 __xcodex_sync() {
   __xsandbox_name="xcodex"
   __xsandbox_dir="${__xcodex_dir}"

@@ -757,12 +757,19 @@ assert_contains '.xclaude' "$out"
 t "base-codex.sb allows Codex state"
 assert_contains '/.codex' "$out"
 assert_contains '/.nvm' "$out"
+assert_contains '/.agents/skills' "$out"
 
 t "base-codex.sb covers current standalone install layouts"
 assert_contains '/.local/bin' "$out"
 assert_contains '/.bun' "$out"
 assert_contains '/usr/local/Caskroom/codex' "$out"
 assert_contains '/usr/local/lib/node_modules/@openai/codex' "$out"
+
+t "base-codex.sb covers only the required ChatGPT Node REPL runtime"
+assert_contains '(literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl")' "$out"
+assert_contains '(literal "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node")' "$out"
+assert_contains '(subpath "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules")' "$out"
+assert_not_contains '(subpath "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin")' "$out"
 
 # ── Path-to-SBPL tests ───────────────────────────────────────
 echo "=== Path-to-SBPL ==="

@@ -73,7 +73,7 @@ Do NOT add rules for these — they are always available:
 **Other:** `dynamic-code-generation` (JIT/WASM), all network/IPC/Mach, TMPDIR + CACHE_DIR + VOLATILE_DIR (parameterized per-session)
 **Protected (deny-after-allow):** `.xclaude`, `.env*` files, `.git/hooks/`
 
-> The list above is for `xclaude` (Claude Code). `xcodex` swaps in `~/.codex` (read+write) and its install paths under `~/.nvm`, `~/.bun`, `~/.local/bin`, `/usr/local/{bin,lib/node_modules}/codex`. `xpi` swaps in `~/.pi` (read+write) with `process-exec` scoped narrowly to `~/.pi/agent/{npm,git,extensions}`, plus install paths under `~/.nvm`, `~/.local/bin`, `~/.local/share/pi-node`, and `/usr/local/{bin,lib/node_modules}/@earendil-works/pi-coding-agent`. Project `.xclaude` is the shared trust-gated config for all three.
+> The list above is for `xclaude` (Claude Code). `xcodex` swaps in `~/.codex` (read+write), `~/.agents/skills` (read-only), its install paths under `~/.nvm`, `~/.bun`, `~/.local/bin`, `/usr/local/{bin,lib/node_modules}/codex`, and the two ChatGPT-bundled Node REPL executables plus their read-only `node_modules` tree. `xpi` swaps in `~/.pi` (read+write) with `process-exec` scoped narrowly to `~/.pi/agent/{npm,git,extensions}`, plus install paths under `~/.nvm`, `~/.local/bin`, `~/.local/share/pi-node`, and `/usr/local/{bin,lib/node_modules}/@earendil-works/pi-coding-agent`. Project `.xclaude` is the shared trust-gated config for all three.
 
 If a denial is for a path under `/private/var/folders`, it is likely already covered by TMPDIR (.../T/), CACHE_DIR (.../C/), or VOLATILE_DIR (.../X/). Do NOT suggest project rules for these paths.
 

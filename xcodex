@@ -48,7 +48,16 @@ main() {
     -D "XCODEX_DIR=${xcodex_dir_resolved}"
     -f "$profile_path"
   )
-  codex_args=(--dangerously-bypass-approvals-and-sandbox "$@")
+  codex_args=(--dangerously-bypass-approvals-and-sandbox)
+
+  # ChatGPT.app's Node REPL normally asks Codex to create a child Seatbelt
+  # sandbox. macOS rejects nested sandbox-exec calls, so run that child
+  # directly; it still inherits xcodex's outer Seatbelt profile.
+  if __xcodex_uses_chatgpt_node_repl; then
+    codex_args+=(--config 'mcp_servers.node_repl.args=["--disable-sandbox"]')
+  fi
+
+  codex_args+=("$@")
 
   # XCLAUDE_ACTIVE is the shared public marker for tools that only need to
   # know they are inside this project's Seatbelt sandbox. XCODEX_ACTIVE is

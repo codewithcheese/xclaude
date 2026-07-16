@@ -2,6 +2,9 @@
 
 A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude`, Codex CLI via `xcodex`, and the [Pi coding agent](https://pi.dev) via `xpi`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
 
+> **Naming note:** This project should be renamed `quicksand` to better align
+> with its multi-agent support.
+
 ## Why
 
 By default Claude Code can read and write anywhere your shell can — including `~/.ssh`, `~/.aws`, browser profiles, shell history, and any document on disk. Anthropic ships a built-in sandbox option (`sandbox.enabled` in settings) but it has [known issues](https://github.com/anthropics/claude-code/issues/31473) on macOS: `denyRead` is ineffective, `allowRead` doesn't exist in the schema, and the generated SBPL profiles can crash the process silently.
@@ -120,7 +123,18 @@ Rejection is fatal: denying a config (or any pack it references — see [Packs](
 - Trust ledger: `~/.config/xcodex/trusted`
 - Base fragments: `base-common.sb` + `base-codex.sb`
 
-Its base profile grants Codex access to `~/.codex` state and its current CLI install location under `~/.nvm`, instead of Claude-specific paths like `~/.claude` and `~/.local/share/claude`.
+Its base profile grants Codex access to `~/.codex` state, read-only access to
+the documented user skill location at `~/.agents/skills`, and its current CLI
+install location under `~/.nvm`, instead of Claude-specific paths like
+`~/.claude` and `~/.local/share/claude`.
+
+When `~/.codex/config.toml` registers ChatGPT.app's bundled `node_repl` MCP
+server, `xcodex` starts it with `--disable-sandbox`. This disables only the
+REPL's incompatible attempt to nest another Seatbelt sandbox: the MCP server
+and its Node kernel still inherit xcodex's outer profile. The Codex base grants
+read access to the bundled packages and execution only for `node_repl` and its
+`node` kernel; adjacent `npm`, `npx`, `corepack`, and setup scripts remain
+non-executable.
 
 The project config name is currently still `.xclaude` for both agents. The name may become more generic later, but the DSL rules are project/tool requirements and normally do not need to differ between Claude and Codex.
 
