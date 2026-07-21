@@ -4,12 +4,28 @@
 ;; cargo is the build tool and package manager at ~/.cargo/.
 ;; `cargo install` puts binaries in ~/.cargo/bin/.
 ;; Dependencies download to ~/.cargo/registry/ and ~/.cargo/git/.
+;;
+;; Linking native binaries needs the system C toolchain (clang/ld). The
+;; /usr/bin/cc shims redirect to whatever `xcode-select` points at, so both
+;; Xcode.app and Command Line Tools are granted read+exec below.
 
 ;; Exec — cargo, rustc, and cargo-installed binaries
 (allow process-exec
   (subpath (string-append (param "HOME") "/.cargo/bin"))
   ;; rustup shims and toolchain binaries
   (subpath (string-append (param "HOME") "/.rustup")))
+
+;; Exec — C toolchain (clang/ld) cargo invokes at link time. /usr/bin/cc
+;; et al are shims that xcrun redirects to the active developer dir's real
+;; clang/ld. Cover both Xcode.app and CLT to be xcode-select-agnostic.
+(allow process-exec*
+  (subpath "/Applications/Xcode.app")
+  (subpath "/Library/Developer/CommandLineTools"))
+
+;; Read — Xcode bundle (CLT read already covered by base /Library allow).
+;; cc/xcrun read libxcrun.dylib from the active developer dir at link time.
+(allow file-read-data
+  (subpath "/Applications/Xcode.app"))
 
 ;; Read — full cargo home and rustup
 (allow file-read-data
