@@ -50,6 +50,7 @@ Comments start with `#`. Blank lines are ignored.
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
 | `swift` | SwiftPM via Xcode or Command Line Tools, caches/config (`~/Library/{Caches/,}org.swift.swiftpm`, `~/.swiftpm`), narrow TMPDIR exec for the manifest binary. Requires `--disable-sandbox` on swift commands (macOS forbids nested `sandbox-exec`) |
 | `deno` | Deno runtime and cache (`~/.deno`) |
+| `postgres` | Local PostgreSQL servers: SysV shared memory and semaphores required on macOS, plus Intel Homebrew PostgreSQL/libpq execution. Data, logs, and sockets must stay under PROJECT_DIR or TMPDIR; Homebrew's persistent cluster remains read-only |
 | `gh` | GitHub CLI auth tokens (`~/.config/gh`, read-only) |
 | `huggingface` | Model cache, auth tokens (`~/.cache/huggingface`) |
 | `seshi` | Claude Code session indexer hook. Venv (`~/.local/share/uv/tools/seshi`), uv-managed cpython (`~/.local/share/uv/python`), data dir (`~/.local/share/seshi` read+write). Pair with `tool huggingface` for embedding downloads |
@@ -70,10 +71,10 @@ Do NOT add rules for these — they are always available:
 **Exec:** `/bin`, `/usr/bin`, `/opt/homebrew`, `~/.local/bin/claude`, `~/.local/share/claude`, project scripts
 **Read:** System paths (`/System`, `/Library`, `/usr`, `/bin`, `/opt/homebrew`), project directory, Claude config (`~/.claude`), xclaude user config (`~/.config/xclaude`), git config, shell rc files, tmp dirs, keychain
 **Write:** Project directory, Claude state (`~/.claude`), tmp dirs, volatile dir (`/private/var/folders/.../X/` — code-signing clones, Metal shader cache)
-**Other:** `dynamic-code-generation` (JIT/WASM), all network/IPC/Mach, TMPDIR + CACHE_DIR + VOLATILE_DIR (parameterized per-session)
+**Other:** `dynamic-code-generation` (JIT/WASM), all network/POSIX IPC/Mach, TMPDIR + CACHE_DIR + VOLATILE_DIR (parameterized per-session). System V IPC remains opt-in through toolchains such as `postgres`
 **Protected (deny-after-allow):** `.xclaude`, `.env*` files, `.git/hooks/`
 
-> The list above is for `xclaude` (Claude Code). `xcodex` swaps in `~/.codex` (read+write), `~/.agents/skills` (read-only), its install paths under `~/.nvm`, `~/.bun`, `~/.local/bin`, `/usr/local/{bin,lib/node_modules}/codex`, and the two ChatGPT-bundled Node REPL executables plus their read-only `node_modules` tree. `xpi` swaps in `~/.pi` (read+write) with `process-exec` scoped narrowly to `~/.pi/agent/{npm,git,extensions}`, plus install paths under `~/.nvm`, `~/.local/bin`, `~/.local/share/pi-node`, and `/usr/local/{bin,lib/node_modules}/@earendil-works/pi-coding-agent`. Project `.xclaude` is the shared trust-gated config for all three.
+> The list above is for `xclaude` (Claude Code). `xcodex` swaps in `~/.codex` (read+write), `~/.agents/skills` (read-only), its install paths under `~/.nvm`, `~/.bun`, `~/.local/bin`, `/usr/local/{bin,lib/node_modules}/codex`, and the two ChatGPT-bundled Node REPL executables plus their read-only `node_modules` tree. `xpi` swaps in `~/.pi` (read+write) with `process-exec` scoped narrowly to `~/.pi/agent/{npm,git,extensions}`, plus install paths under `~/.nvm`, `~/.local/bin`, `~/.local/share/pi-node`, and `/usr/local/{bin,lib/node_modules}/@earendil-works/pi-coding-agent`. `xopencode` grants read+write only to OpenCode's default config/data/state/cache roots, read-only cross-agent skill discovery, exact execution of the resolved CLI, and execution under `~/.cache/opencode/bin`; it does not grant Codex auth or Keychain access. Project `.xclaude` is the shared trust-gated config for all four.
 
 If a denial is for a path under `/private/var/folders`, it is likely already covered by TMPDIR (.../T/), CACHE_DIR (.../C/), or VOLATILE_DIR (.../X/). Do NOT suggest project rules for these paths.
 

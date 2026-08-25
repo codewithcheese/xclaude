@@ -1,0 +1,79 @@
+;; ============================================================
+;; OpenCode-specific process execution
+;; ============================================================
+
+;; The launcher resolves the selected OpenCode executable before entering
+;; Seatbelt. A literal grant supports the official installer, Homebrew, npm,
+;; bun, pnpm, yarn, mise, and custom release-binary locations without exposing
+;; an entire user-writable package-manager tree.
+(allow process-exec
+  (literal (param "OPENCODE_BIN")))
+
+;; OpenCode downloads ripgrep, fzf, language servers, and formatter helpers to
+;; its cache bin directory and launches them as project tooling.
+(allow process-exec
+  (subpath (string-append (param "HOME") "/.cache/opencode/bin")))
+
+;; ============================================================
+;; OpenCode-specific read permissions
+;; ============================================================
+
+;; Read the exact resolved OpenCode executable selected by the launcher.
+(allow file-read-data
+  (literal (param "OPENCODE_BIN")))
+
+;; OpenCode's global config includes opencode.json/jsonc, agents, commands,
+;; skills, plugins, and their runtime-installed JavaScript dependencies.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/opencode")))
+
+;; OpenCode stores credentials, its SQLite session database, logs, snapshots,
+;; repository metadata, and tool output under the XDG data root.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/share/opencode")))
+
+;; OpenCode stores model selection, prompt history, and locks under XDG state.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.local/state/opencode")))
+
+;; OpenCode stores model metadata, plugins, package dependencies, and downloaded
+;; formatter/search/LSP tools under its XDG cache root.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.cache/opencode")))
+
+;; OpenCode auto-discovers cross-agent skills from these two narrow trees.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.claude/skills"))
+  (subpath (string-append (param "HOME") "/.agents/skills")))
+
+;; xopencode user configuration is readable for sandbox debugging, while the
+;; trust ledger remains writable only by the outer launcher.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/xopencode")))
+
+;; ============================================================
+;; OpenCode-specific write permissions
+;; ============================================================
+
+;; OpenCode installs its config schema dependency and global plugin packages
+;; beside global config, so normal startup requires writes to this app root.
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.config/opencode")))
+
+;; Credentials, sessions, logs, snapshots, and the SQLite database are mutable
+;; runtime data that OpenCode persists across sessions.
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.local/share/opencode")))
+
+;; Model selection, prompt history, and process locks are mutable UI state.
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.local/state/opencode")))
+
+;; Plugins, package dependencies, model metadata, and downloaded tools are
+;; mutable cache data; execution remains narrowed to cache/bin above.
+(allow file-write*
+  (subpath (string-append (param "HOME") "/.cache/opencode")))
+
+;; Shared project sandbox config is executable authority for the next launch.
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))

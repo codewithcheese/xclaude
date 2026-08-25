@@ -1,0 +1,22 @@
+;; PostgreSQL local-server toolchain
+;;
+;; Apple Silicon Homebrew binaries are already readable and executable through
+;; the shared /opt/homebrew rules. Intel Homebrew binaries resolve beneath
+;; /usr/local/{Cellar,opt}, which need an explicit execution grant. PostgreSQL
+;; data, logs, and Unix sockets should live under PROJECT_DIR or TMPDIR; this
+;; toolchain deliberately does not make Homebrew's persistent cluster writable.
+
+;; Exec — PostgreSQL server/client programs from versioned or current Intel
+;; Homebrew formulae. libpq is included because it provides client programs
+;; such as psql without installing a server formula.
+(allow process-exec
+  (regex #"^/usr/local/(Cellar|opt)/postgresql(@[0-9]+)?/")
+  (regex #"^/usr/local/(Cellar|opt)/libpq/"))
+
+;; IPC — PostgreSQL uses a small System V shared-memory segment for server
+;; coordination on macOS even when shared_memory_type is mmap.
+(allow ipc-sysv-shm)
+
+;; IPC — PostgreSQL uses System V semaphore sets during initdb and server
+;; startup on macOS.
+(allow ipc-sysv-sem)

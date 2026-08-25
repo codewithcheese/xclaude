@@ -7,18 +7,24 @@ on:
       - 'base-common.sb'
       - 'base-codex.sb'
       - 'base-pi.sb'
+      - 'base-opencode.sb'
       - 'xclaude'
       - 'xcodex'
       - 'xpi'
+      - 'xopencode'
       - 'xclaude.lib.zsh'
       - 'xcodex.lib.zsh'
       - 'xpi.lib.zsh'
+      - 'xopencode.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'test_xcodex_sandbox.zsh'
       - 'test_xpi_sandbox.zsh'
+      - 'test_xopencode_sandbox.zsh'
+      - 'toolchains/postgres.sb'
+      - 'toolchains/postgres.test.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
   pull_request:
@@ -28,18 +34,24 @@ on:
       - 'base-common.sb'
       - 'base-codex.sb'
       - 'base-pi.sb'
+      - 'base-opencode.sb'
       - 'xclaude'
       - 'xcodex'
       - 'xpi'
+      - 'xopencode'
       - 'xclaude.lib.zsh'
       - 'xcodex.lib.zsh'
       - 'xpi.lib.zsh'
+      - 'xopencode.lib.zsh'
       - 'xsandbox.lib.zsh'
       - 'test_xclaude.bash'
       - 'test_trust_gate.zsh'
       - 'test_sandbox.zsh'
       - 'test_xcodex_sandbox.zsh'
       - 'test_xpi_sandbox.zsh'
+      - 'test_xopencode_sandbox.zsh'
+      - 'toolchains/postgres.sb'
+      - 'toolchains/postgres.test.zsh'
       - 'toolchains/test_helpers.zsh'
       - '.github/workflows/test.yml'
 
@@ -79,3 +91,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: zsh test_xpi_sandbox.zsh
+
+
+  sandbox-opencode:
+    name: "Sandbox: OpenCode base profile"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+      - run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+      - run: zsh test_xopencode_sandbox.zsh
+
+  sandbox-postgres:
+    name: "Sandbox toolchain: PostgreSQL"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install postgresql@17
+      - run: zsh test_sandbox.zsh --toolchain postgres
