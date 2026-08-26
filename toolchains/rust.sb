@@ -1,6 +1,9 @@
 ;; Rust toolchain (rustup + cargo)
 ;;
 ;; rustup manages Rust installations at ~/.rustup/.
+;; Its distribution state lives in ~/.rustup/{tmp,downloads,update-hashes,toolchains}/.
+;; Those directories are writable so rust-toolchain.toml can select and install a
+;; pinned channel; user-level defaults in ~/.rustup/settings.toml stay read-only.
 ;; cargo is the build tool and package manager at ~/.cargo/.
 ;; `cargo install` puts binaries in ~/.cargo/bin/.
 ;; Dependencies download to ~/.cargo/registry/ and ~/.cargo/git/.
@@ -32,8 +35,16 @@
   (subpath (string-append (param "HOME") "/.cargo"))
   (subpath (string-append (param "HOME") "/.rustup")))
 
-;; Write — binaries (cargo install), dependency cache, metadata
+;; Write — rustup distributions, Cargo binaries, cache, and metadata
 (allow file-write*
+  ;; Transient channel hashes, manifests, and unpacking files.
+  (subpath (string-append (param "HOME") "/.rustup/tmp"))
+  ;; Persistent component archive cache used during toolchain installation.
+  (subpath (string-append (param "HOME") "/.rustup/downloads"))
+  ;; Per-channel hashes used to decide whether an installed channel is current.
+  (subpath (string-append (param "HOME") "/.rustup/update-hashes"))
+  ;; Rust compilers and components selected by rust-toolchain.toml.
+  (subpath (string-append (param "HOME") "/.rustup/toolchains"))
   ;; `cargo install` writes compiled binaries here
   (subpath (string-append (param "HOME") "/.cargo/bin"))
   ;; crate registry index and downloaded crates

@@ -5,6 +5,9 @@ tc_fixture_dir "${HOME}/.cargo/bin"
 tc_fixture_dir "${HOME}/.cargo/registry"
 tc_fixture_dir "${HOME}/.cargo/git"
 tc_fixture_file "${HOME}/.cargo/env"
+tc_fixture_dir "${HOME}/.rustup/tmp"
+tc_fixture_dir "${HOME}/.rustup/downloads"
+tc_fixture_dir "${HOME}/.rustup/update-hashes"
 tc_fixture_dir "${HOME}/.rustup/toolchains"
 
 # ── Access ──
@@ -24,6 +27,25 @@ expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/.package-cache-mutat
 
 t "rust: write ~/.cargo/.global-cache"
 expect_success "allowed" tc_sandboxed touch "${HOME}/.cargo/.global-cache"
+
+t "rust: write ~/.rustup/tmp for channel sync"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.rustup/tmp/xclaude-test-write"
+rm -f "${HOME}/.rustup/tmp/xclaude-test-write"
+
+t "rust: write ~/.rustup/downloads for component archives"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.rustup/downloads/xclaude-test-write"
+rm -f "${HOME}/.rustup/downloads/xclaude-test-write"
+
+t "rust: write ~/.rustup/update-hashes for channel state"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.rustup/update-hashes/xclaude-test-write"
+rm -f "${HOME}/.rustup/update-hashes/xclaude-test-write"
+
+t "rust: write ~/.rustup/toolchains for pinned toolchain installs"
+expect_success "allowed" tc_sandboxed touch "${HOME}/.rustup/toolchains/xclaude-test-write"
+rm -f "${HOME}/.rustup/toolchains/xclaude-test-write"
+
+t "rust: ~/.rustup/settings.toml remains read-only"
+expect_fail "blocked" tc_sandboxed touch "${HOME}/.rustup/settings.toml"
 
 # ── Usability ──
 __cargo="${HOME}/.cargo/bin/cargo"

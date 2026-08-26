@@ -46,7 +46,7 @@ Comments start with `#`. Blank lines are ignored.
 | `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only |
 | `python` | pyenv (`~/.pyenv`) |
-| `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`), and the C linker (clang/ld via Xcode.app + Command Line Tools, read+exec) that `cargo build` invokes to link native binaries |
+| `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup` read+exec; distribution state writable for pinned toolchain installs, settings read-only), and the C linker (clang/ld via Xcode.app + Command Line Tools, read+exec) that `cargo build` invokes to link native binaries |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
 | `swift` | SwiftPM via Xcode or Command Line Tools, caches/config (`~/Library/{Caches/,}org.swift.swiftpm`, `~/.swiftpm`), narrow TMPDIR exec for the manifest binary. Requires `--disable-sandbox` on swift commands (macOS forbids nested `sandbox-exec`) |
 | `deno` | Deno runtime and cache (`~/.deno`) |
@@ -272,7 +272,7 @@ tool gh
 </output>
 <reasoning>
 - Two toolchains, no manual rules needed
-- `tool rust` covers ~/.cargo, ~/.rustup, and the C linker (Xcode/CLT) for native builds
+- `tool rust` covers ~/.cargo, rustup-managed distributions under ~/.rustup (settings stay read-only), and the C linker (Xcode/CLT) for native builds
 - `tool gh` covers ~/.config/gh (read-only)
 - Build artifacts go to ./target/ which is inside PROJECT_DIR (already writable)
 </reasoning>

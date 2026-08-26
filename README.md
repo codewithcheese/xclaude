@@ -290,7 +290,7 @@ allow-exec  ~/.local/bin/custom    # read + exec access
 | `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only — `uv tool install` symlinks are redirected to `~/.local/share/uv/bin/` via `UV_TOOL_BIN_DIR` to prevent binary overwrite attacks |
 | `python` | pyenv (`~/.pyenv`) |
-| `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup`), and the C linker (clang/ld via Xcode or Command Line Tools, read+exec) that `cargo build` invokes to link native binaries |
+| `rust` | Cargo (`~/.cargo`), rustup (`~/.rustup` read+exec; distribution state writable for pinned toolchain installs, settings read-only), and the C linker (clang/ld via Xcode or Command Line Tools, read+exec) that `cargo build` invokes to link native binaries |
 | `go` | Go toolchain (`/usr/local/go`, `~/go`), build cache (`~/.cache/go-build`) |
 | `swift` | SwiftPM via Xcode or Command Line Tools, SwiftPM caches/config (`~/Library/{Caches/,}org.swift.swiftpm`, `~/.swiftpm`). Pass `--disable-sandbox` to swift commands — macOS forbids nested `sandbox-exec` |
 | `deno` | Deno runtime and cache (`~/.deno`) |
