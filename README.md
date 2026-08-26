@@ -15,7 +15,7 @@ For Codex CLI, `xcodex` uses the same outer Seatbelt boundary and starts Codex w
 
 For the Pi coding agent, `xpi` uses the same outer Seatbelt boundary. Pi has no built-in approval/sandbox layer to disable, so the binary runs with whatever arguments you pass through — the OS sandbox is the only enforcement layer.
 
-For OpenCode, `xopencode` keeps OpenCode's own permission prompts intact while applying the outer Seatbelt boundary. OpenCode's credentials and session database remain in its app-specific data directory; unrelated agent credentials and the macOS Keychain stay blocked.
+For OpenCode, `xopencode` passes `--auto` to bypass OpenCode's application-level permission prompts while applying the outer Seatbelt boundary. OpenCode's credentials and session database remain in its app-specific data directory; unrelated agent credentials and the macOS Keychain stay blocked.
 
 ## What it protects
 
@@ -99,7 +99,7 @@ sandbox-exec -f <assembled> -- pi <your args>
 For OpenCode the flow uses `base-common.sb + base-opencode.sb`, `~/.config/xopencode/config`, and the same project-level `./.xclaude` file, then launches:
 
 ```sh
-OPENCODE_DISABLE_AUTOUPDATE=1 sandbox-exec -f <assembled> -- opencode <your args>
+OPENCODE_DISABLE_AUTOUPDATE=1 sandbox-exec -f <assembled> -- opencode --auto <your args>
 ```
 
 All layers are **additive**. The base profile starts with `(deny default)` and the DSL has no `deny` verb, so config files can only widen access — never narrow what the base profile already grants.
@@ -203,7 +203,7 @@ OpenCode's app-specific roots are writable because normal operation persists cre
 | Model selection, prompt history, locks | `~/.local/state/opencode` | read+write |
 | Plugin cache and downloaded tools/LSPs | `~/.cache/opencode` | read+write; exec only under `bin/` |
 
-OpenCode also receives read-only access to `~/.claude/skills` and `~/.agents/skills`, which it auto-discovers. It does not receive `~/.codex`, the macOS Keychain, or unrelated home directories. `xopencode` sets `OPENCODE_DISABLE_AUTOUPDATE=1` because the selected installation is read-only; run `opencode upgrade` outside the sandbox. OpenCode's own permission prompts remain enabled unless you explicitly pass its `--auto` flag.
+OpenCode also receives read-only access to `~/.claude/skills` and `~/.agents/skills`, which it auto-discovers. It does not receive `~/.codex`, the macOS Keychain, or unrelated home directories. `xopencode` always passes `--auto` because Seatbelt is the permission boundary, matching `xclaude`'s prompt-bypass model. It also sets `OPENCODE_DISABLE_AUTOUPDATE=1` because the selected installation is read-only; run `opencode upgrade` outside the sandbox.
 
 Nonstandard `XDG_*` or `OPENCODE_CONFIG*` paths are not converted into implicit grants because environment variables are not trust-gated. Paths under the project already work; external paths require explicit trusted `allow-read`/`allow-write` directives.
 

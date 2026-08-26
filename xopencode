@@ -27,9 +27,8 @@ main() {
   opencode_bin="$(readlink -f "$opencode_bin")"
 
   if ! command -v sandbox-exec &>/dev/null; then
-    echo "xopencode: sandbox-exec not found, running without sandbox" >&2
-    "$opencode_bin" "$@"
-    return
+    echo "xopencode: sandbox-exec not found; refusing to run OpenCode with --auto outside Seatbelt" >&2
+    return 1
   fi
 
   local xopencode_dir_resolved="$(readlink -f "${__xopencode_dir}")"
@@ -51,11 +50,11 @@ main() {
     -f "$profile_path"
   )
 
-  # Keep OpenCode's own permission prompts as a second UX/security layer. The
-  # install itself is read-only inside xopencode, so upgrades happen outside
-  # the sandbox while runtime state and plugin caches remain writable.
+  # Seatbelt is the permission boundary, so bypass OpenCode's application-level
+  # approval prompts. The install itself remains read-only inside xopencode;
+  # upgrades happen outside while runtime state and plugin caches stay writable.
   env XCLAUDE_ACTIVE=1 XOPENCODE_ACTIVE=1 OPENCODE_DISABLE_AUTOUPDATE=1 \
-    sandbox-exec "${sandbox_args[@]}" -- "$opencode_bin" "$@"
+    sandbox-exec "${sandbox_args[@]}" -- "$opencode_bin" --auto "$@"
   rc=$?
 
   rm -f "$profile_path"

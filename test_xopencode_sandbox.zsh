@@ -1,7 +1,8 @@
 #!/bin/zsh
 # xopencode sandbox integration tests
 # Runs on macOS only. Exercises OpenCode config/auth/state/cache access,
-# downloaded-tool execution, credential isolation, and installed CLI startup.
+# auto-approval, downloaded-tool execution, credential isolation, and installed
+# CLI startup.
 #
 # Usage: zsh test_xopencode_sandbox.zsh
 
@@ -97,9 +98,13 @@ __ensure_executable() {
 }
 
 __fake_opencode="${HOME}/.opencode/bin/xopencode-test-$$"
+__wrapper_fake_dir="${PROJECT_DIR}/wrapper-bin"
+__wrapper_fake="${__wrapper_fake_dir}/opencode"
 __cache_tool="${HOME}/.cache/opencode/bin/xopencode-tool-test-$$"
 __data_executable="${HOME}/.local/share/opencode/xopencode-data-test-$$"
 __ensure_executable "$__fake_opencode"
+__ensure_file "$__wrapper_fake" $'#!/bin/sh\ntest "$1" = "--auto"\n'
+/bin/chmod +x "$__wrapper_fake"
 __ensure_executable "$__cache_tool"
 __ensure_executable "$__data_executable"
 __ensure_file "${HOME}/.config/opencode/xopencode-test-readable-$$"
@@ -238,6 +243,10 @@ expect_success "visible" sandboxed /bin/sh -c 'test "$XCLAUDE_ACTIVE" = 1'
 
 t "OpenCode auto-update is disabled inside xopencode"
 expect_success "disabled" sandboxed /bin/sh -c 'test "$OPENCODE_DISABLE_AUTOUPDATE" = 1'
+
+t "xopencode auto-approves OpenCode permissions"
+expect_success "--auto passed first" /usr/bin/env PATH="${__wrapper_fake_dir}:${PATH}" \
+  "${SCRIPT_DIR}/xopencode"
 
 t "installed OpenCode can initialize isolated XDG state"
 if opencode_bin="$(command -v opencode 2>/dev/null)"; then
