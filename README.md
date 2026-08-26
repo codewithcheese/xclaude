@@ -1,6 +1,6 @@
 # xclaude
 
-A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude`, Codex CLI via `xcodex`, the [Pi coding agent](https://pi.dev) via `xpi`, and [OpenCode](https://opencode.ai) via `xopencode`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
+A macOS Seatbelt sandbox for agent CLIs — [Claude Code](https://claude.com/claude-code) via `xclaude`, Codex CLI via `xcodex`, the [Pi coding agent](https://pi.dev) via `xpi`, [Oh My Pi](https://github.com/can1357/oh-my-pi) via `xomp`, and [OpenCode](https://opencode.ai) via `xopencode`. Each wrapper runs the underlying agent in `sandbox-exec` with a strict, layered SBPL profile so the agent can only read and write files you've explicitly allowed.
 
 > **Naming note:** This project should be renamed `quicksand` to better align
 > with its multi-agent support.
@@ -14,6 +14,8 @@ xclaude replaces it with a hand-tuned Seatbelt profile that **defaults to strict
 For Codex CLI, `xcodex` uses the same outer Seatbelt boundary and starts Codex with `--dangerously-bypass-approvals-and-sandbox`. That disables Codex's own approval/sandbox layer because the OS sandbox assembled by xcodex is the enforcement boundary.
 
 For the Pi coding agent, `xpi` uses the same outer Seatbelt boundary. Pi has no built-in approval/sandbox layer to disable, so the binary runs with whatever arguments you pass through — the OS sandbox is the only enforcement layer.
+
+For Oh My Pi, `xomp` passes `--auto-approve` to bypass OMP's application-level permission prompts while applying the same outer Seatbelt boundary. OMP's DeepSeek API keys and OpenAI Codex OAuth credentials stay in its own SQLite store under `~/.omp`; `xomp` does not expose Codex CLI's auth file or the macOS Keychain.
 
 For OpenCode, `xopencode` passes `--auto` to bypass OpenCode's application-level permission prompts while applying the outer Seatbelt boundary. OpenCode's credentials and session database remain in its app-specific data directory; unrelated agent credentials and the macOS Keychain stay blocked.
 
@@ -64,6 +66,7 @@ These attack patterns are all blocked by Seatbelt's kernel-level enforcement and
    xclaude    # Claude Code
    xcodex     # Codex CLI
    xpi        # Pi coding agent
+   xomp       # Oh My Pi coding agent
    xopencode  # OpenCode
    ```
 
@@ -94,6 +97,12 @@ For Pi the same flow uses `base-common.sb + base-pi.sb`, `~/.config/xpi/config`,
 
 ```sh
 sandbox-exec -f <assembled> -- pi <your args>
+```
+
+For Oh My Pi the flow uses `base-common.sb + base-omp.sb`, `~/.config/xomp/config`, and the same project-level `./.xclaude` file, then launches:
+
+```sh
+sandbox-exec -f <assembled> -- omp --auto-approve <your args>
 ```
 
 For OpenCode the flow uses `base-common.sb + base-opencode.sb`, `~/.config/xopencode/config`, and the same project-level `./.xclaude` file, then launches:
@@ -181,6 +190,29 @@ Pi install layouts covered by the base profile:
 Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+exec rules.
 
 Unlike Codex, Pi can install npm and git packages and TypeScript extensions at runtime under `~/.pi/agent/{npm,git,extensions}`. Pi state (`~/.pi`) is fully readable and writable, but `process-exec` is scoped narrowly to those three install subdirectories — sessions, `auth.json`, settings, themes, prompts, and other state under `~/.pi` cannot be executed even if a write lands there. Plugin and hook support for Pi is intentionally not implemented yet.
+
+### xomp
+
+`xomp` follows the shared DSL and trust model with OMP-specific defaults:
+
+- Project config: `.xclaude` (shared with the other launchers)
+- User config: `~/.config/xomp/config`
+- Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
+- Trust ledger: `~/.config/xomp/trusted`
+- Base fragments: `base-common.sb` + `base-omp.sb`
+
+OMP keeps settings, profiles, sessions, extracted native addons, plugins, worktrees, and logs under `~/.omp`. Provider API keys and OAuth access/refresh material—including OMP's independent OpenAI Codex OAuth flow—live in `~/.omp/agent/agent.db`. The whole OMP tree is readable and writable, but execution is limited to OMP code-bearing directories (`agent/{extensions,hooks,tools}`, `plugins`, the managed `python-env`, and downloaded browsers under `puppeteer`) so writable sessions, databases, settings, and logs are not executable. `xomp` always passes `--auto-approve` because Seatbelt is the permission boundary.
+
+OMP install layouts covered by the base profile:
+
+| Install layout | Covered paths |
+|---|---|
+| Official binary installer | `~/.local/bin/omp` |
+| Bun global install | `~/.bun/bin` and `~/.bun/install/global` |
+| mise GitHub backend | `~/.local/share/mise/{shims/omp,installs/omp}` plus `~/.local/bin/mise` |
+| Intel Homebrew | `/usr/local/bin/omp` and `/usr/local/Cellar/omp` |
+
+Apple Silicon Homebrew is covered by the shared `/opt/homebrew` rules. The base also supports OMP's managed Python REPL environment, python.org framework interpreters, PTYs, JavaScript dynamic code generation, Apple LLDB under Xcode or Command Line Tools, and OMP's downloaded Chrome-for-Testing fallback under `~/.omp/puppeteer`. System Google Chrome remains blocked unless `tool chrome` is enabled; this makes OMP fall back to its isolated download by default instead of exposing the installed browser. Browser-profile and desktop-control access remain opt-in because those features expose substantially broader user data. Other language servers and debuggers use the existing project/system paths or an explicit toolchain.
 
 ### xopencode
 
@@ -393,9 +425,9 @@ if (process.env.XCLAUDE_ACTIVE !== "1") {
 }
 ```
 
-`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. `xclaude`, `xcodex`, `xpi`, and `xopencode` all set it so sandbox-aware tools work under any launcher. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
+`XCLAUDE_ACTIVE` is the **stable, public** API for sandbox detection — it's inherited by all child processes and won't change. `xclaude`, `xcodex`, `xpi`, `xomp`, and `xopencode` all set it so sandbox-aware tools work under any launcher. Other `XCLAUDE_*` environment variables (`XCLAUDE_DENIAL_LOG`, `XCLAUDE_RELOAD_SENTINEL`) are internal and may change without notice.
 
-The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, or `XOPENCODE_ACTIVE=1` respectively. None has denial-hook or reload sentinel variables today.
+The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, `XOMP_ACTIVE=1`, or `XOPENCODE_ACTIVE=1` respectively. None has denial-hook or reload sentinel variables today.
 
 ## Reference
 
@@ -411,6 +443,7 @@ The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, or `XOPE
 | `CACHE_DIR` | `/private/var/folders/<...>/C/` (sibling of TMPDIR — Spotlight/mds, keychain) |
 | `VOLATILE_DIR` | `/private/var/folders/<...>/X/` (sibling of TMPDIR — code-signing clones, Metal shader cache) |
 | `XCLAUDE_DIR` | Absolute path of the xclaude installation (used to allow the bundled plugin) |
+| `XOMP_DIR` | Absolute path of the xomp installation |
 | `XOPENCODE_DIR` | Absolute path of the xopencode installation |
 | `OPENCODE_BIN` | Resolved OpenCode executable selected before entering Seatbelt |
 
@@ -423,6 +456,7 @@ The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, or `XOPE
 | `XCLAUDE_RELOAD_SENTINEL` | Path to reload sentinel file | Internal — do not rely on |
 | `XCODEX_ACTIVE` | `1` | **Stable** — public API for Codex sandbox detection |
 | `XPI_ACTIVE` | `1` | **Stable** — public API for Pi sandbox detection |
+| `XOMP_ACTIVE` | `1` | **Stable** — public API for Oh My Pi sandbox detection |
 | `XOPENCODE_ACTIVE` | `1` | **Stable** — public API for OpenCode sandbox detection |
 
 ### Files
@@ -432,16 +466,19 @@ The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, or `XOPE
 | `xclaude` | Executable entry point — sources library, runs sandboxed Claude (reload loop) |
 | `xcodex` | Executable entry point — sources library, runs sandboxed Codex CLI |
 | `xpi` | Executable entry point — sources library, runs sandboxed Pi coding agent |
+| `xomp` | Executable entry point — sources library, runs sandboxed Oh My Pi |
 | `xopencode` | Executable entry point — sources library, runs sandboxed OpenCode |
 | `xsandbox.lib.zsh` | Shared DSL parser, validator, SBPL generator, assembler, trust gate |
 | `xclaude.lib.zsh` | Claude-specific wrapper over the shared library |
 | `xcodex.lib.zsh` | Codex-specific wrapper over the shared library |
 | `xpi.lib.zsh` | Pi-specific wrapper over the shared library |
+| `xomp.lib.zsh` | Oh My Pi-specific wrapper over the shared library |
 | `xopencode.lib.zsh` | OpenCode-specific wrapper over the shared library |
 | `base-common.sb` | Shared SBPL base (`deny default` + common rules) |
 | `base.sb` | Claude-specific SBPL fragment layered on top of `base-common.sb` |
 | `base-codex.sb` | Codex-specific SBPL fragment layered on top of `base-common.sb` |
 | `base-pi.sb` | Pi-specific SBPL fragment layered on top of `base-common.sb` |
+| `base-omp.sb` | Oh My Pi-specific SBPL fragment layered on top of `base-common.sb` |
 | `base-opencode.sb` | OpenCode-specific SBPL fragment layered on top of `base-common.sb` |
 | `toolchains/<name>.sb` | Bundled toolchain SBPL fragments |
 | `toolchains/<name>.test.zsh` | Sandbox tests for each toolchain |
@@ -455,6 +492,7 @@ The agent-specific wrappers also set `XCODEX_ACTIVE=1`, `XPI_ACTIVE=1`, or `XOPE
 | `test_sandbox.zsh` | Sandbox integration test runner (macOS only) |
 | `test_xcodex_sandbox.zsh` | Codex base-profile sandbox integration tests (macOS only) |
 | `test_xpi_sandbox.zsh` | Pi base-profile sandbox integration tests (macOS only) |
+| `test_xomp_sandbox.zsh` | Oh My Pi base-profile sandbox integration tests (macOS only) |
 | `test_xopencode_sandbox.zsh` | OpenCode base-profile sandbox integration tests (macOS only) |
 | [`CLAUDE.md`](CLAUDE.md) | Development guide — architecture, adding toolchains, base profile changes |
 | [`DEBUGGING.md`](DEBUGGING.md) | Diagnosing sandbox issues, SBPL gotchas, denial categories |
@@ -487,6 +525,9 @@ zsh test_sandbox.zsh --with-config path/to/.xclaude
 
 # Codex base profile
 zsh test_xcodex_sandbox.zsh
+
+# Oh My Pi base profile
+zsh test_xomp_sandbox.zsh
 
 # OpenCode base profile
 zsh test_xopencode_sandbox.zsh

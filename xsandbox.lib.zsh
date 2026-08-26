@@ -1,5 +1,5 @@
 # Shared sandbox library — DSL parser, validator, SBPL generator, trust gate, assembler
-# Sourced by xclaude.lib.zsh and xcodex.lib.zsh. No side effects on load.
+# Sourced by each launcher-specific library. No side effects on load.
 #
 # Required variables before use:
 #   __xsandbox_name         Display name / config namespace (e.g. xclaude)

@@ -1,0 +1,119 @@
+;; ============================================================
+;; Oh My Pi-specific process execution
+;; ============================================================
+
+;; OMP supports a standalone release binary, Bun, Homebrew, and mise installs.
+;; Keep each user-writable install layout scoped to OMP rather than making an
+;; entire package manager or ~/.local executable by default.
+(allow process-exec
+  ;; The official binary installer defaults PI_INSTALL_DIR to ~/.local/bin.
+  (literal (string-append (param "HOME") "/.local/bin/omp"))
+  ;; Bun's global launcher and @oh-my-pi/pi-coding-agent package live here.
+  (subpath (string-append (param "HOME") "/.bun"))
+  ;; mise's GitHub backend installs OMP here and may enter through this shim.
+  (literal (string-append (param "HOME") "/.local/share/mise/shims/omp"))
+  (subpath (string-append (param "HOME") "/.local/share/mise/installs/omp"))
+  (literal (string-append (param "HOME") "/.local/bin/mise"))
+  ;; Intel Homebrew resolves its bin symlink into the OMP Cellar directory.
+  (literal "/usr/local/bin/omp")
+  (subpath "/usr/local/Cellar/omp"))
+
+;; OMP loads user-authored extensions, hooks, custom tools, and installed
+;; plugins as code. Native dependencies and helper executables shipped by
+;; those packages must inherit the outer sandbox when launched. Deliberately
+;; exclude sessions, agent.db, config, logs, and other writable OMP state.
+(allow process-exec
+  ;; Extensions are uncategorized agent configuration and stay under the
+  ;; active agent directory even when XDG data/state/cache roots are enabled.
+  (subpath (string-append (param "OMP_AGENT_DIR") "/extensions"))
+  ;; Hooks are executable user configuration under the active agent directory.
+  (subpath (string-append (param "OMP_AGENT_DIR") "/hooks"))
+  ;; Custom tools are executable user configuration under the active agent directory.
+  (subpath (string-append (param "OMP_AGENT_DIR") "/tools"))
+  ;; Installed plugins move to the active XDG data root when XDG data is enabled.
+  (subpath (string-append (param "OMP_DATA_ROOT") "/plugins"))
+  ;; `omp setup python` creates the managed eval/debugpy environment here.
+  (subpath (string-append (param "OMP_DATA_ROOT") "/python-env"))
+  ;; OMP downloads its fallback Chrome-for-Testing build here when a system
+  ;; browser is not visible. It moves to XDG cache when enabled; system Chrome
+  ;; remains opt-in via `tool chrome`.
+  (subpath (string-append (param "OMP_CACHE_ROOT") "/puppeteer")))
+
+;; OMP's Python REPL uses the selected interpreter. The shared profile already
+;; covers /usr/bin and Homebrew Python; python.org installs use this framework.
+(allow process-exec
+  (subpath "/Library/Frameworks/Python.framework/Versions"))
+
+;; The DAP debugger can launch Apple LLDB through Xcode or Command Line Tools.
+;; These developer trees are system-owned and read-only under this profile.
+(allow process-exec
+  (subpath "/Applications/Xcode.app/Contents/Developer")
+  (subpath "/Library/Developer/CommandLineTools"))
+
+;; ============================================================
+;; Oh My Pi-specific read permissions
+;; ============================================================
+
+;; Read the same documented OMP installation layouts that may be executed.
+(allow file-read-data
+  (literal (string-append (param "HOME") "/.local/bin/omp"))
+  (subpath (string-append (param "HOME") "/.bun"))
+  (literal (string-append (param "HOME") "/.local/share/mise/shims/omp"))
+  (subpath (string-append (param "HOME") "/.local/share/mise/installs/omp"))
+  (literal (string-append (param "HOME") "/.local/bin/mise"))
+  (literal "/usr/local/bin/omp")
+  (subpath "/usr/local/Cellar/omp"))
+
+;; OMP configuration and its active agent directory include settings plus
+;; uncategorized extensions, hooks, tools, commands, and prompts. Explicit
+;; parameters also support named profiles, PI_CONFIG_DIR, and
+;; PI_CODING_AGENT_DIR without exposing unrelated home paths.
+(allow file-read-data
+  (subpath (param "OMP_CONFIG_ROOT"))
+  (subpath (param "OMP_AGENT_DIR")))
+
+;; Categorized OMP data, state, and caches move independently to XDG roots.
+;; The app roots are included so `omp config init-xdg` can create them without
+;; granting their surrounding XDG home directories or sibling applications.
+(allow file-read-data
+  (subpath (param "OMP_DATA_ROOT"))
+  (subpath (param "OMP_STATE_ROOT"))
+  (subpath (param "OMP_CACHE_ROOT"))
+  (subpath (param "OMP_XDG_DATA_ROOT"))
+  (subpath (param "OMP_XDG_STATE_ROOT"))
+  (subpath (param "OMP_XDG_CACHE_ROOT")))
+
+;; xomp user config is read-only so OMP can inspect sandbox configuration while
+;; trust data remains writable only by the outer launcher.
+(allow file-read-data
+  (subpath (string-append (param "HOME") "/.config/xomp")))
+
+;; Xcode lives outside the system paths read by base-common.sb; LLDB and its
+;; adjacent shared frameworks need data reads when OMP starts a DAP session.
+(allow file-read-data
+  (subpath "/Applications/Xcode.app/Contents/Developer")
+  (subpath "/Applications/Xcode.app/Contents/SharedFrameworks"))
+
+;; ============================================================
+;; Oh My Pi-specific write permissions
+;; ============================================================
+
+;; OMP writes settings and uncategorized agent state to the active config roots.
+(allow file-write*
+  (subpath (param "OMP_CONFIG_ROOT"))
+  (subpath (param "OMP_AGENT_DIR")))
+
+;; OMP persists credentials, sessions, plugins, logs, native addons, worktrees,
+;; and managed runtimes across the independently selected XDG categories. The
+;; XDG app roots also permit first-time initialization, but not sibling apps.
+(allow file-write*
+  (subpath (param "OMP_DATA_ROOT"))
+  (subpath (param "OMP_STATE_ROOT"))
+  (subpath (param "OMP_CACHE_ROOT"))
+  (subpath (param "OMP_XDG_DATA_ROOT"))
+  (subpath (param "OMP_XDG_STATE_ROOT"))
+  (subpath (param "OMP_XDG_CACHE_ROOT")))
+
+;; Shared project sandbox config is executable authority for the next launch.
+(deny file-write*
+  (literal (string-append (param "PROJECT_DIR") "/.xclaude")))
