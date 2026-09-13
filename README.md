@@ -286,7 +286,7 @@ allow-exec  ~/.local/bin/custom    # read + exec access
 
 | Name | What it grants |
 |---|---|
-| `node` | NVM (`~/.nvm` read+exec), npm/npx cache (`~/.npm`), corepack (`~/.cache/node`), pnpm via corepack, global pnpm store (`~/.pnpm-store`), pnpm config (`~/.config/pnpm`) |
+| `node` | NVM, npm/npx, Corepack, and pnpm (including native pnpm 12); macOS dependency/engine stores under `~/Library/pnpm`, legacy/XDG stores, and read-only pnpm configuration. See [pnpm configuration and sandbox scope](docs/pnpm.md). |
 | `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only — `uv tool install` symlinks are redirected to `~/.local/share/uv/bin/` via `UV_TOOL_BIN_DIR` to prevent binary overwrite attacks |
 | `python` | pyenv (`~/.pyenv`) |
@@ -533,7 +533,10 @@ zsh test_xomp_sandbox.zsh
 zsh test_xopencode_sandbox.zsh
 ```
 
-Each tested toolchain runs in its own parallel CI job with the tool installed at its canonical path. Tests verify:
+GitHub Actions workflows are temporarily disabled and preserved in
+[`.github/workflows-disabled`](.github/workflows-disabled/README.md).
+Run the commands above locally. The preserved workflows define separate
+toolchain jobs with tools installed at their canonical paths. Tests verify:
 
 - Read/write/exec access to declared paths
 - Real tool operations (`npm install`, `cargo build`, `uv pip install`, etc.) — not just `--version`

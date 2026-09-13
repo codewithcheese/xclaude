@@ -42,7 +42,7 @@ Comments start with `#`. Blank lines are ignored.
 
 | Name | What it grants |
 |------|----------------|
-| `node` | NVM (`~/.nvm` read+exec), npm/npx cache (`~/.npm` read+write+exec), corepack (`~/.cache/node`), pnpm binary (`~/.local/share/pnpm`), global store (`~/.pnpm-store`), config (`~/.config/pnpm`) |
+| `node` | NVM, npm/npx, Corepack; pnpm macOS `~/Library/pnpm/{store,package-manager-store,.tools/pnpm}` read+write+exec, engine lockfile and atomic temps in `global/v11`, `~/.pnpm-state` read+write; legacy/XDG stores; pnpm config (`~/.config/pnpm`, `~/Library/Preferences/pnpm`) read-only. Global apps/bins are not granted by the macOS rules. See `docs/pnpm.md`. |
 | `bun` | Bun runtime and install cache (`~/.bun`) |
 | `uv` | uv/uvx, cache (`~/Library/Caches/uv`, `~/.local/share/uv`). `~/.local/bin` is read+exec only |
 | `python` | pyenv (`~/.pyenv`) |

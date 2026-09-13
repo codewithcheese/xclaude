@@ -5,10 +5,13 @@
 ;; npx downloads and executes one-off packages from ~/.npm/_npx/.
 ;; Corepack (bundled with Node) manages package manager versions and
 ;; stores state at ~/.cache/node/corepack/.
-;; pnpm uses a content-addressable store at ~/.pnpm-store/ shared
-;; across all projects. The binary installs to ~/.local/share/pnpm/
-;; via the standalone installer. Config at ~/.config/pnpm/rc or
-;; ~/Library/Preferences/pnpm/rc.
+;; pnpm's macOS data directory is ~/Library/pnpm; ~/.pnpm-store is
+;; a legacy/custom store and ~/.local/share/pnpm is the XDG layout.
+;; pnpm 12 can be a native executable installed through npm under NVM.
+;; Project version pins download engines into package-manager-store;
+;; their lockfile lives in global/v11 (also used by pnpm 12).
+;; pnpm 10 uses .tools/pnpm for managed versions. Config is read-only:
+;; ~/Library/Preferences/pnpm/{rc,config.yaml} or ~/.config/pnpm/.
 
 ;; Exec — NVM-managed binaries (node, npm, npx), npx cache,
 ;; pnpm binary, and pnpm store (dlx executes packages from store).
@@ -19,6 +22,10 @@
   (subpath (string-append (param "HOME") "/.npm"))
   (subpath (string-append (param "HOME") "/.local/share/pnpm"))
   (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; macOS dependency store and version-pinned package-manager binaries.
+  (subpath (string-append (param "HOME") "/Library/pnpm/store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/package-manager-store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/.tools/pnpm"))
   ;; pnpm dlx downloads and executes packages from the cache
   (subpath (string-append (param "HOME") "/Library/Caches/pnpm")))
 
@@ -30,6 +37,14 @@
   (subpath (string-append (param "HOME") "/.cache/node"))
   (subpath (string-append (param "HOME") "/.local/share/pnpm"))
   (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; macOS cached dependencies and managed pnpm versions, not global apps.
+  (subpath (string-append (param "HOME") "/Library/pnpm/store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/package-manager-store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/.tools/pnpm"))
+  ;; Version-switch integrity metadata, shared across project pins.
+  (literal (string-append (param "HOME") "/Library/pnpm/global/v11/pnpm-lock.yaml"))
+  ;; macOS update-check state; Linux/XDG state is covered below.
+  (subpath (string-append (param "HOME") "/.pnpm-state"))
   ;; pnpm state (tracks store integrity, last update check)
   (subpath (string-append (param "HOME") "/.local/state/pnpm"))
   ;; pnpm metadata cache and dlx package downloads
@@ -46,7 +61,30 @@
   (subpath (string-append (param "HOME") "/.npm"))
   (subpath (string-append (param "HOME") "/.cache/node"))
   (subpath (string-append (param "HOME") "/.pnpm-store"))
+  ;; macOS dependency downloads, engine installs, SQLite indexes and locks.
+  (subpath (string-append (param "HOME") "/Library/pnpm/store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/package-manager-store"))
+  (subpath (string-append (param "HOME") "/Library/pnpm/.tools/pnpm"))
+  ;; pnpm 11/12 update the engine lockfile when a project selects a version.
+  (literal (string-append (param "HOME") "/Library/pnpm/global/v11/pnpm-lock.yaml"))
+  ;; macOS update-check state is mutable but never executable.
+  (subpath (string-append (param "HOME") "/.pnpm-state"))
   ;; pnpm state file (update check timestamps, etc.)
   (subpath (string-append (param "HOME") "/.local/state/pnpm"))
   ;; pnpm metadata cache and dlx temp packages
   (subpath (string-append (param "HOME") "/Library/Caches/pnpm")))
+
+;; Permit creation of the parent directories on a fresh macOS installation.
+;; This grants no data writes to existing global apps, bins or home config.
+(allow file-write-create
+  (literal (string-append (param "HOME") "/Library/pnpm"))
+  (literal (string-append (param "HOME") "/Library/pnpm/.tools"))
+  (literal (string-append (param "HOME") "/Library/pnpm/global"))
+  (literal (string-append (param "HOME") "/Library/pnpm/global/v11")))
+
+;; pnpm replaces the version-switch lockfile using a sibling .tmpXXXXXX.
+;; Match only these temporary files directly in global/v11, not its apps.
+(allow file-read-data file-write*
+  (require-all
+    (subpath (string-append (param "HOME") "/Library/pnpm/global/v11"))
+    (regex #"/global/v11/\.tmp[A-Za-z0-9]+$")))

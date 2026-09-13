@@ -40,6 +40,49 @@ rm -f "${HOME}/.pnpm-store/test-write"
 t "node: read pnpm config"
 expect_success "allowed" tc_sandboxed cat "${HOME}/.config/pnpm/rc"
 
+# macOS pnpm layouts: dependencies and managed engines are mutable caches.
+for __pnpm_cache in \
+  "${HOME}/Library/pnpm/store" \
+  "${HOME}/Library/pnpm/package-manager-store" \
+  "${HOME}/Library/pnpm/.tools/pnpm"; do
+  __pnpm_fixture="${__pnpm_cache}/xclaude-test-$$"
+  tc_fixture_dir "$__pnpm_fixture"
+  tc_fixture_file "${__pnpm_fixture}/readable" pnpm-cache-test
+  tc_fixture_file "${__pnpm_fixture}/executable" $'#!/bin/sh\necho pnpm-cache-exec'
+  chmod +x "${__pnpm_fixture}/executable"
+  t "node: read ${__pnpm_cache}"
+  expect_success "allowed" tc_sandboxed /bin/cat "${__pnpm_fixture}/readable"
+  t "node: write ${__pnpm_cache}"
+  expect_success "allowed" tc_sandboxed /usr/bin/touch "${__pnpm_fixture}/written"
+  rm -f "${__pnpm_fixture}/written"
+  t "node: execute ${__pnpm_cache}"
+  expect_success "runs" tc_sandboxed "${__pnpm_fixture}/executable"
+done
+
+# The engine lockfile's atomic temp files are allowed only at this level.
+tc_fixture_dir "${HOME}/Library/pnpm/global/v11"
+__pnpm_atomic="${HOME}/Library/pnpm/global/v11/.tmpXclaude$$"
+t "node: pnpm engine atomic lockfile write"
+expect_success "allowed" tc_sandboxed /usr/bin/touch "$__pnpm_atomic"
+rm -f "$__pnpm_atomic"
+tc_fixture_dir "${HOME}/Library/pnpm/global/v11/xclaude-test-$$"
+t "node: nested global app temp files not writable"
+expect_fail "blocked" tc_sandboxed /usr/bin/touch "${HOME}/Library/pnpm/global/v11/xclaude-test-$$/.tmpForbidden"
+t "node: arbitrary global root files not writable"
+expect_fail "blocked" tc_sandboxed /usr/bin/touch "${HOME}/Library/pnpm/global/v11/xclaude-forbidden-$$"
+t "node: lockfile temp pattern requires a literal dot"
+expect_fail "blocked" tc_sandboxed /usr/bin/touch "${HOME}/Library/pnpm/global/v11/xtmpXclaude$$"
+tc_fixture_dir "${HOME}/Library/pnpm/bin"
+t "node: global pnpm bins not writable"
+expect_fail "blocked" tc_sandboxed /usr/bin/touch "${HOME}/Library/pnpm/bin/xclaude-forbidden-$$"
+tc_fixture_dir "${HOME}/Library/Preferences/pnpm"
+t "node: pnpm configuration not writable"
+expect_fail "blocked" tc_sandboxed /usr/bin/touch "${HOME}/Library/Preferences/pnpm/xclaude-forbidden-$$"
+tc_fixture_dir "${HOME}/.pnpm-state"
+t "node: macOS pnpm state writable"
+expect_success "allowed" tc_sandboxed /usr/bin/touch "${HOME}/.pnpm-state/xclaude-test-$$"
+rm -f "${HOME}/.pnpm-state/xclaude-test-$$"
+
 # ── Usability ──
 # Find node binary: try nvm versions first, then fall back to PATH
 __node_bin="$(find "${HOME}/.nvm/versions" -name "node" \( -type f -o -type l \) 2>/dev/null | head -1)"
@@ -108,6 +151,20 @@ if [[ -n "$__pnpm" ]]; then
 
   t "node: pnpm-lock.yaml created"
   expect_success "lockfile" tc_sandboxed test -f "${PROJECT_DIR}/pnpm-test/pnpm-lock.yaml"
+
+  # A local CLI must run through pnpm's shorthand dispatch, not just --version.
+  mkdir -p "${PROJECT_DIR}/pnpm-test/node_modules/.bin"
+  printf '#!/bin/sh\necho pnpm-cli-ok\n' > "${PROJECT_DIR}/pnpm-test/node_modules/.bin/xclaude-probe"
+  chmod +x "${PROJECT_DIR}/pnpm-test/node_modules/.bin/xclaude-probe"
+  t "node: pnpm dispatches project CLI"
+  expect_success "runs" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/pnpm-test' && '$__pnpm' xclaude-probe"
+
+  # Version pins exercise managed-engine downloads and global lockfile writes.
+  mkdir -p "${PROJECT_DIR}/pnpm-pin-test"
+  echo '{"name":"sandbox-pin-test","private":true,"packageManager":"pnpm@10.34.1"}' > "${PROJECT_DIR}/pnpm-pin-test/package.json"
+  t "node: pnpm honors project version pin"
+  expect_success "10.34.1" tc_sandboxed /bin/sh -c "cd '${PROJECT_DIR}/pnpm-pin-test' && actual=\$( '$__pnpm' --version ) && [ \"\$actual\" = 10.34.1 ]"
+  rm -rf "${PROJECT_DIR}/pnpm-pin-test"
 
   rm -rf "${PROJECT_DIR}/pnpm-test"
 
