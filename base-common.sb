@@ -71,6 +71,11 @@
 (allow file-write*
   (subpath (param "VOLATILE_DIR")))
 
+;; Shared user rules — every agent can inspect the active sandbox config.
+;; Limit this grant to the config file; other launchers' trust stores stay private.
+(allow file-read-data
+  (literal (string-append (param "HOME") "/.config/xclaude/config")))
+
 ;; Git config — needed for git commands inside sessions
 (allow file-read-data
   (path (string-append (param "HOME") "/.gitconfig")))

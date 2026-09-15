@@ -962,6 +962,68 @@ else
 fi
 reset_ledger
 
+# ── Shared user config across real launcher wrappers ────────
+echo "=== Shared user config ==="
+
+__shared_config_root="${TMP}/shared-config"
+__shared_config_home="${__shared_config_root}/home"
+mkdir -p "${__shared_config_home}/.config/xclaude" "${__shared_config_root}/project"
+for launcher in xcodex xpi xomp xopencode; do
+  mkdir -p "${__shared_config_home}/.config/${launcher}"
+  echo "allow-read ~/legacy-config-${launcher}" > "${__shared_config_home}/.config/${launcher}/config"
+done
+
+# Run each wrapper in a child with an isolated home so the test never reads
+# or changes the real user's rules or trust ledger. Exercise the actual zsh
+# assembler, including its repeated wrapper sync calls during DSL expansion.
+cat > "${__shared_config_root}/assemble.zsh" <<'EOF'
+set -euo pipefail
+repo="$1"
+launcher="$2"
+project="$3"
+typeset "__${launcher}_dir=${repo}"
+source "${repo}/${launcher}.lib.zsh"
+"__${launcher}_assemble" "$project"
+EOF
+
+assemble_shared_config() {
+  /usr/bin/env HOME="$__shared_config_home" zsh -f "${__shared_config_root}/assemble.zsh" \
+    "$SCRIPT_DIR" "$1" "${__shared_config_root}/project"
+}
+
+cat > "${__shared_config_home}/.config/xclaude/config" <<'EOF'
+# A stowed Git config and a toolchain must work for every agent.
+allow-read ~/shared-dotfiles/.gitconfig
+tool gh
+EOF
+for launcher in xclaude xcodex xpi xomp xopencode; do
+  t "${launcher}: shared user rules and toolchains are assembled"
+  out="$(assemble_shared_config "$launcher" </dev/null)"
+  assert_eq "0" "$?"
+  assert_contains 'User config: ~/.config/xclaude/config' "$out"
+  assert_contains '(allow file-read-data (subpath (string-append (param "HOME") "/shared-dotfiles/.gitconfig")))' "$out"
+  assert_contains 'toolchain: gh' "$out"
+  assert_not_contains 'legacy-config-' "$out"
+done
+
+echo 'allow-write /System/forbidden' > "${__shared_config_home}/.config/xclaude/config"
+for launcher in xclaude xcodex xpi xomp xopencode; do
+  t "${launcher}: invalid shared user rules abort assembly"
+  out="$(assemble_shared_config "$launcher" 2>/dev/null </dev/null)"
+  assert_eq "1" "$?"
+  assert_eq "" "$out"
+done
+
+rm "${__shared_config_home}/.config/xclaude/config"
+for launcher in xclaude xcodex xpi xomp xopencode; do
+  t "${launcher}: shared user config is optional; old private configs are ignored"
+  out="$(assemble_shared_config "$launcher" </dev/null)"
+  assert_eq "0" "$?"
+  assert_contains '(deny default)' "$out"
+  assert_not_contains 'User config:' "$out"
+  assert_not_contains 'legacy-config-' "$out"
+done
+
 # ── Results ────────────────────────────────────────────────
 echo ""
 echo "=== Results ==="

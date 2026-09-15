@@ -16,7 +16,7 @@ __xopencode_sync() {
   : "${__xopencode_trust_dir:=${HOME}/.config/xopencode}"
   : "${__xopencode_trusted_file:=${__xopencode_trust_dir}/trusted}"
   : "${__xopencode_trusted_copies:=${__xopencode_trust_dir}/trusted.d}"
-  __xsandbox_user_config="${HOME}/.config/xopencode/config"
+  __xsandbox_user_config="${HOME}/.config/xclaude/config"
   __xsandbox_trust_dir="${__xopencode_trust_dir}"
   __xsandbox_trusted_file="${__xopencode_trusted_file}"
   __xsandbox_trusted_copies="${__xopencode_trusted_copies}"

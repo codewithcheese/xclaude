@@ -16,7 +16,7 @@ __xpi_sync() {
   : "${__xpi_trust_dir:=${HOME}/.config/xpi}"
   : "${__xpi_trusted_file:=${__xpi_trust_dir}/trusted}"
   : "${__xpi_trusted_copies:=${__xpi_trust_dir}/trusted.d}"
-  __xsandbox_user_config="${HOME}/.config/xpi/config"
+  __xsandbox_user_config="${HOME}/.config/xclaude/config"
   __xsandbox_trust_dir="${__xpi_trust_dir}"
   __xsandbox_trusted_file="${__xpi_trusted_file}"
   __xsandbox_trusted_copies="${__xpi_trusted_copies}"

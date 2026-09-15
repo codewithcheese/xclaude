@@ -7,7 +7,7 @@
 # Optional variables:
 #   __xsandbox_base_profile Path to the base SBPL profile
 #   __xsandbox_config_name  Project config basename (default: .<name>)
-#   __xsandbox_user_config  User config path (default: ~/.config/<name>/config)
+#   __xsandbox_user_config  Shared user config path (default: ~/.config/xclaude/config)
 #   __xsandbox_trust_dir    Trust store directory (default: ~/.config/<name>)
 #   __xsandbox_trusted_file Trust ledger path
 #   __xsandbox_trusted_copies Directory of trusted config snapshots
@@ -17,7 +17,7 @@ __xsandbox_sync_defaults() {
   : "${__xsandbox_dir:?__xsandbox_dir is required}"
   : "${__xsandbox_base_profile:=${__xsandbox_dir}/base.sb}"
   : "${__xsandbox_config_name:=.${__xsandbox_name}}"
-  : "${__xsandbox_user_config:=${HOME}/.config/${__xsandbox_name}/config}"
+  : "${__xsandbox_user_config:=${HOME}/.config/xclaude/config}"
   : "${__xsandbox_trust_dir:=${HOME}/.config/${__xsandbox_name}}"
   : "${__xsandbox_trusted_file:=${__xsandbox_trust_dir}/trusted}"
   : "${__xsandbox_trusted_copies:=${__xsandbox_trust_dir}/trusted.d}"
@@ -83,7 +83,7 @@ __xsandbox_parse() {
 __xsandbox_validate() {
   __xsandbox_sync_defaults
   # Source context controls which verbs are legal here:
-  #   user    — ~/.config/<name>/config
+  #   user    — ~/.config/xclaude/config (shared by all launchers)
   #   project — project <config_name> file
   #   pack    — a file inside ~/.config/<name>/packs/
   # `pack` directives are only legal when source=project (no nesting, no

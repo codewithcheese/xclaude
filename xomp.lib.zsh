@@ -16,7 +16,7 @@ __xomp_sync() {
   : "${__xomp_trust_dir:=${HOME}/.config/xomp}"
   : "${__xomp_trusted_file:=${__xomp_trust_dir}/trusted}"
   : "${__xomp_trusted_copies:=${__xomp_trust_dir}/trusted.d}"
-  __xsandbox_user_config="${HOME}/.config/xomp/config"
+  __xsandbox_user_config="${HOME}/.config/xclaude/config"
   __xsandbox_trust_dir="${__xomp_trust_dir}"
   __xsandbox_trusted_file="${__xomp_trusted_file}"
   __xsandbox_trusted_copies="${__xomp_trusted_copies}"

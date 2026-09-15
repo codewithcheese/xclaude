@@ -83,8 +83,8 @@
   (subpath (param "OMP_XDG_STATE_ROOT"))
   (subpath (param "OMP_XDG_CACHE_ROOT")))
 
-;; xomp user config is read-only so OMP can inspect sandbox configuration while
-;; trust data remains writable only by the outer launcher.
+;; xomp trust ledger and snapshots are readable for sandbox debugging,
+;; but writable only by the outer launcher.
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.config/xomp")))
 

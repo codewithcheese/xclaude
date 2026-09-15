@@ -87,25 +87,25 @@ base.sb                       # core profile (always applied)
 sandbox-exec -f <assembled>   --   claude --dangerously-skip-permissions --plugin-dir <xclaude>
 ```
 
-For Codex the same flow uses `base-common.sb + base-codex.sb`, `~/.config/xcodex/config`, and the same project-level `./.xclaude` file, then launches:
+For Codex the same flow uses `base-common.sb + base-codex.sb`, `~/.config/xclaude/config`, and the same project-level `./.xclaude` file, then launches:
 
 ```sh
 sandbox-exec -f <assembled> -- codex --dangerously-bypass-approvals-and-sandbox
 ```
 
-For Pi the same flow uses `base-common.sb + base-pi.sb`, `~/.config/xpi/config`, and the same project-level `./.xclaude` file, then launches:
+For Pi the same flow uses `base-common.sb + base-pi.sb`, `~/.config/xclaude/config`, and the same project-level `./.xclaude` file, then launches:
 
 ```sh
 sandbox-exec -f <assembled> -- pi <your args>
 ```
 
-For Oh My Pi the flow uses `base-common.sb + base-omp.sb`, `~/.config/xomp/config`, and the same project-level `./.xclaude` file, then launches:
+For Oh My Pi the flow uses `base-common.sb + base-omp.sb`, `~/.config/xclaude/config`, and the same project-level `./.xclaude` file, then launches:
 
 ```sh
 sandbox-exec -f <assembled> -- omp --auto-approve <your args>
 ```
 
-For OpenCode the flow uses `base-common.sb + base-opencode.sb`, `~/.config/xopencode/config`, and the same project-level `./.xclaude` file, then launches:
+For OpenCode the flow uses `base-common.sb + base-opencode.sb`, `~/.config/xclaude/config`, and the same project-level `./.xclaude` file, then launches:
 
 ```sh
 OPENCODE_DISABLE_AUTOUPDATE=1 sandbox-exec -f <assembled> -- opencode --auto <your args>
@@ -136,7 +136,7 @@ Rejection is fatal: denying a config (or any pack it references — see [Packs](
 `xcodex` follows the same DSL and trust model, but uses Codex-specific defaults:
 
 - Project config: `.xclaude` (shared with `xclaude`)
-- User config: `~/.config/xcodex/config`
+- User config: `~/.config/xclaude/config`
 - Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
 - Trust ledger: `~/.config/xcodex/trusted`
 - Base fragments: `base-common.sb` + `base-codex.sb`
@@ -172,7 +172,7 @@ Apple Silicon Homebrew installs are covered by the shared `/opt/homebrew` read+e
 `xpi` follows the same DSL and trust model, but uses Pi-specific defaults:
 
 - Project config: `.xclaude` (shared with `xclaude` and `xcodex`)
-- User config: `~/.config/xpi/config`
+- User config: `~/.config/xclaude/config`
 - Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
 - Trust ledger: `~/.config/xpi/trusted`
 - Base fragments: `base-common.sb` + `base-pi.sb`
@@ -196,7 +196,7 @@ Unlike Codex, Pi can install npm and git packages and TypeScript extensions at r
 `xomp` follows the shared DSL and trust model with OMP-specific defaults:
 
 - Project config: `.xclaude` (shared with the other launchers)
-- User config: `~/.config/xomp/config`
+- User config: `~/.config/xclaude/config`
 - Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
 - Trust ledger: `~/.config/xomp/trusted`
 - Base fragments: `base-common.sb` + `base-omp.sb`
@@ -219,7 +219,7 @@ Apple Silicon Homebrew is covered by the shared `/opt/homebrew` rules. The base 
 `xopencode` follows the shared DSL and trust model with OpenCode-specific defaults:
 
 - Project config: `.xclaude` (shared with the other launchers)
-- User config: `~/.config/xopencode/config`
+- User config: `~/.config/xclaude/config`
 - Packs referenced by `.xclaude`: `~/.config/xclaude/packs/<name>`
 - Trust ledger: `~/.config/xopencode/trusted`
 - Base fragments: `base-common.sb` + `base-opencode.sb`
@@ -308,7 +308,7 @@ Adding a new toolchain is a five-file change (SBPL fragment, sandbox test, READM
 
 ### User-level config
 
-For personal paths that apply to all projects (e.g., shell config symlink targets, always-on tools), create `~/.config/xclaude/config` using the same DSL:
+All five launchers (`xclaude`, `xcodex`, `xpi`, `xomp`, and `xopencode`) read `~/.config/xclaude/config`. For personal paths that apply to all projects (e.g., shell config symlink targets, always-on tools), use the same DSL:
 
 ```sh
 # Personal tools available in all projects
@@ -319,6 +319,8 @@ allow-write ~/.config/auto-chat
 ```
 
 This layer is applied before the project config, is not trust-gated, and edits take effect on the next launch. `pack` is **not** allowed here; packs exist to share DSL across your own projects, not to define global defaults.
+
+If you previously used a launcher-specific `config` file under `~/.config/xcodex`, `~/.config/xpi`, `~/.config/xomp`, or `~/.config/xopencode`, move the rules you want to share into `~/.config/xclaude/config`; those old config files are no longer loaded. Each launcher keeps its own trust ledger and snapshots.
 
 ### Packs
 

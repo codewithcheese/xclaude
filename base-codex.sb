@@ -53,7 +53,7 @@
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.agents/skills")))
 
-;; xcodex user config — read-only for inspection/debugging
+;; xcodex trust ledger and snapshots — read-only for inspection/debugging.
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.config/xcodex")))
 

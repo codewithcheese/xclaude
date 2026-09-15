@@ -69,7 +69,7 @@ only `~/.npm` is writable).
 Do NOT add rules for these — they are always available:
 
 **Exec:** `/bin`, `/usr/bin`, `/opt/homebrew`, `~/.local/bin/claude`, `~/.local/share/claude`, project scripts
-**Read:** System paths (`/System`, `/Library`, `/usr`, `/bin`, `/opt/homebrew`), project directory, Claude config (`~/.claude`), xclaude user config (`~/.config/xclaude`), git config, shell rc files, tmp dirs, keychain
+**Read:** System paths (`/System`, `/Library`, `/usr`, `/bin`, `/opt/homebrew`), project directory, Claude config (`~/.claude`), xclaude user config (`~/.config/xclaude`), git config, shell rc files, tmp dirs, keychain. All launchers can read the shared user config file `~/.config/xclaude/config`; symlink targets still need explicit read grants.
 **Write:** Project directory, Claude state (`~/.claude`), tmp dirs, volatile dir (`/private/var/folders/.../X/` — code-signing clones, Metal shader cache)
 **Other:** `dynamic-code-generation` (JIT/WASM), all network/POSIX IPC/Mach, TMPDIR + CACHE_DIR + VOLATILE_DIR (parameterized per-session). System V IPC remains opt-in through toolchains such as `postgres`
 **Protected (deny-after-allow):** `.xclaude`, `.env*` files, `.git/hooks/`
@@ -122,7 +122,7 @@ If an alternative exists that works within current permissions, recommend it and
 
 If permissions must be widened, examine what's already configured and what the project needs:
 
-1. **Check user-level config** — read `~/.config/xclaude/config` if it exists. This contains toolchains and rules that apply to ALL projects (e.g. `tool cmux`, shell config symlink targets). Do not duplicate or re-suggest rules that are already in user config.
+1. **Check user-level config** — read `~/.config/xclaude/config` if it exists. All five launchers load this same file. It contains toolchains and rules that apply to ALL projects (e.g. `tool cmux`, shell config symlink targets). Do not duplicate or re-suggest rules that are already in user config.
 2. **Check project `.xclaude`** — read it if present (this may be a revision)
 3. **Identify the tech stack** — look at package.json, Cargo.toml, pyproject.toml, go.mod, etc.
 3. **Ask the user** what tools they use if the project doesn't make it obvious

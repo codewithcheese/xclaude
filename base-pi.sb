@@ -48,7 +48,7 @@
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.pi")))
 
-;; xpi user config — read-only for inspection/debugging.
+;; xpi trust ledger and snapshots — read-only for inspection/debugging.
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.config/xpi")))
 

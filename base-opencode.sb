@@ -46,8 +46,8 @@
   (subpath (string-append (param "HOME") "/.claude/skills"))
   (subpath (string-append (param "HOME") "/.agents/skills")))
 
-;; xopencode user configuration is readable for sandbox debugging, while the
-;; trust ledger remains writable only by the outer launcher.
+;; xopencode trust ledger and snapshots are readable for sandbox debugging,
+;; but writable only by the outer launcher.
 (allow file-read-data
   (subpath (string-append (param "HOME") "/.config/xopencode")))
 

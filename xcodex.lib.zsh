@@ -42,7 +42,7 @@ __xcodex_sync() {
   : "${__xcodex_trust_dir:=${HOME}/.config/xcodex}"
   : "${__xcodex_trusted_file:=${__xcodex_trust_dir}/trusted}"
   : "${__xcodex_trusted_copies:=${__xcodex_trust_dir}/trusted.d}"
-  __xsandbox_user_config="${HOME}/.config/xcodex/config"
+  __xsandbox_user_config="${HOME}/.config/xclaude/config"
   __xsandbox_trust_dir="${__xcodex_trust_dir}"
   __xsandbox_trusted_file="${__xcodex_trusted_file}"
   __xsandbox_trusted_copies="${__xcodex_trusted_copies}"

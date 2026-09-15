@@ -328,7 +328,7 @@ __xcodex_assemble() {
   local project_dir="$1"
   local base_common="${__xclaude_dir}/base-common.sb"
   local base_profile="${__xclaude_dir}/base-codex.sb"
-  local user_config="${HOME}/.config/xcodex/config"
+  local user_config="${HOME}/.config/xclaude/config"
   local project_config="${project_dir}/.xclaude"
   local assembled generated
 
@@ -338,7 +338,7 @@ __xcodex_assemble() {
     generated="$(__xclaude_parse "$user_config" | __xcodex_validate user | __xclaude_generate)" || return 1
     if [[ -n "$generated" ]]; then
       assembled+=$'\n\n;; ============================================================'
-      assembled+=$'\n;; User config: ~/.config/xcodex/config'
+      assembled+=$'\n;; User config: ~/.config/xclaude/config'
       assembled+=$'\n;; ============================================================'
       assembled+="$generated"
     fi
